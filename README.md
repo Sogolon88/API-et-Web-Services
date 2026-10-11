@@ -16,7 +16,11 @@ Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échang
 | Présence en ligne et hors ligne en direct | WebSocket | Fait |
 | Client web de test, utilisable sur téléphone et sur ordinateur | HTML / CSS / JavaScript | Fait |
 | Interfaces finales mobile et bureau | HTML / CSS / JavaScript | Prévu |
-| Bonus : accusés de lecture, indicateur de saisie, webhook hors ligne, limitation de débit, Swagger | REST et WebSocket | Prévu |
+| Bonus : accusés de réception et de lecture (envoyé, livré, lu) | WebSocket | Fait |
+| Bonus : indicateur de saisie | WebSocket | Fait |
+| Bonus : notification hors ligne par webhook | HTTP sortant | Fait |
+| Bonus : limitation de débit des messages | WebSocket | Fait |
+| Bonus : documentation OpenAPI et Swagger UI | REST | Fait |
 
 ## Lancer le projet
 
@@ -50,6 +54,7 @@ Les tests utilisent une base H2 en mémoire et ne touchent pas aux données.
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `JWT_SECRET` | Clé de signature des jetons (32 caractères minimum) | Clé aléatoire à chaque démarrage |
+| `CHAT_WEBHOOK_URL` | URL appelée en `POST` quand le destinataire d'un message est hors ligne | Aucune : notification simulée dans les logs |
 | `SPRING_PROFILES_ACTIVE=postgres` | Utiliser PostgreSQL au lieu de H2 | H2 |
 | `DB_URL` | URL PostgreSQL (profil `postgres`) | `jdbc:postgresql://localhost:5432/chatapiDB` |
 | `DB_USER` | Utilisateur PostgreSQL (profil `postgres`) | `postgres` |
@@ -97,10 +102,10 @@ Content-Type: application/json
 **Message de l'historique**
 
 ```json
-{ "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30" }
+{ "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30", "statut": "LU" }
 ```
 
-Une collection Postman documentée et testée est fournie dans [`postman/`](postman/README.md).
+La documentation OpenAPI est consultable sur **http://localhost:8080/swagger-ui.html** : après la connexion, coller le jeton dans "Authorize" pour essayer les endpoints protégés. Une collection Postman documentée et testée est aussi fournie dans [`postman/`](postman/README.md).
 
 ## WebSocket
 
@@ -115,9 +120,13 @@ Sans jeton valide, la connexion est refusée (`401`). Le jeton est passé dans l
 | Type | Sens | Contenu |
 |---|---|---|
 | `message` | client vers serveur | `destinataireId`, `contenu` |
-| `message` | serveur vers destinataire | `id`, `expediteurId`, `destinataireId`, `contenu`, `dateEnvoi` |
+| `message` | serveur vers destinataire et expéditeur | `id`, `expediteurId`, `destinataireId`, `contenu`, `dateEnvoi`, `statut` |
+| `accuse` | serveur vers expéditeur | `messageId`, `statut` (`LIVRE` ou `LU`) |
+| `lu` | client vers serveur | `interlocuteurId` : la conversation est affichée |
+| `saisie` | client vers serveur | `destinataireId`, `enCours` |
+| `saisie` | serveur vers destinataire | `expediteurId`, `enCours` |
 | `presence` | serveur vers les autres utilisateurs | `utilisateurId`, `enLigne` |
-| `erreur` | serveur vers l'émetteur | `code` (`FORMAT_INVALIDE`, `TYPE_INCONNU`, `MESSAGE_INVALIDE`), `detail` |
+| `erreur` | serveur vers l'émetteur | `code` (`FORMAT_INVALIDE`, `TYPE_INCONNU`, `MESSAGE_INVALIDE`, `LIMITE_DEPASSEE`), `detail` |
 
 **Envoyer un message**
 
@@ -128,12 +137,20 @@ Sans jeton valide, la connexion est refusée (`401`). Le jeton est passé dans l
 **Message reçu par le destinataire**
 
 ```json
-{ "type": "message", "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30" }
+{ "type": "message", "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30", "statut": "ENVOYE" }
 ```
 
 L'expéditeur est toujours celui du jeton et la date celle du serveur : un `expediteurId` ou une `dateEnvoi` envoyés par le client sont ignorés.
 
-Chaque message est enregistré en base avec le statut `ENVOYE` avant toute tentative de livraison. Si le destinataire est connecté, il le reçoit immédiatement et le statut passe à `LIVRE`. Sinon, le message reste en base et apparaît dans l'historique REST à sa prochaine connexion.
+**Cycle d'un message**
+
+1. Le message est enregistré en base avec le statut `ENVOYE`, avant toute tentative de livraison.
+2. Il est renvoyé à l'expéditeur, qui obtient ainsi son `id` et la date du serveur.
+3. Si le destinataire est connecté, il le reçoit immédiatement, le statut passe à `LIVRE` et l'expéditeur reçoit un `accuse`.
+4. Sinon, le message attend en base et un webhook prévient un service tiers (simulé dans les logs si `CHAT_WEBHOOK_URL` n'est pas défini). À la connexion du destinataire, le statut passe à `LIVRE`.
+5. Quand le destinataire ouvre la conversation, il envoie `lu` : les messages passent à `LU` et l'expéditeur reçoit un `accuse`.
+
+Un statut n'avance jamais en arrière. Chaque utilisateur peut envoyer au plus 20 messages sur toute période de 10 secondes ; au-delà, il reçoit une `erreur` `LIMITE_DEPASSEE`.
 
 ## Tester depuis un téléphone
 
@@ -146,7 +163,7 @@ Un VPN actif sur le PC peut bloquer l'accès depuis le réseau local : autoriser
 
 ## Technologies
 
-Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), Gradle 9, JWT (jjwt), H2 et PostgreSQL, Lombok, HTML / CSS / JavaScript.
+Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), Gradle 9, JWT (jjwt), springdoc-openapi (Swagger UI), H2 et PostgreSQL, Lombok, HTML / CSS / JavaScript.
 
 ## Structure du projet
 
@@ -172,6 +189,10 @@ API-et-Web-Services/
         │   │   └── MessageWebSocketHandler  réception, enregistrement et relais
         │   ├── security/                    SecurityConfig, JwtService, JwtAuthFilter
         │   ├── service/                     logique métier
+        │   │   ├── UtilisateurService, MessageService
+        │   │   ├── NotificationService      webhook hors ligne
+        │   │   └── RateLimiter              limitation de débit
+        │   ├── config/                      OpenApiConfig (documentation Swagger)
         │   ├── repository/                  accès à la base (Spring Data JPA)
         │   ├── model/                       entités Utilisateur et Message, StatutMessage
         │   └── dto/                         objets JSON échangés (records)
@@ -179,7 +200,7 @@ API-et-Web-Services/
         │   ├── static/                          client web (index.html, chat.js, chat.css)
         │   ├── application.properties           configuration par défaut (H2)
         │   └── application-postgres.properties  profil PostgreSQL
-        └── test/                            tests JUnit : API REST (MockMvc) et WebSocket
+        └── test/                            tests JUnit : API REST (MockMvc), WebSocket, limitation de débit
 ```
 
 ---
