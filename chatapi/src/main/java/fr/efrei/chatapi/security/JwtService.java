@@ -14,7 +14,9 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class JwtService {
 
@@ -25,9 +27,16 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret,
                       @Value("${jwt.expiration-ms}") long dureeValiditeMs) {
-        // Clé construite une seule fois. hmacShaKeyFor refuse une clé de moins de 256 bits :
-        // une configuration faible fait échouer le démarrage au lieu de passer inaperçue.
-        this.cle = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        if (secret.isBlank()) {
+            // Sans secret configuré, le projet reste lançable tel quel et aucun secret n'est versionné.
+            // Prix à payer : les jetons émis deviennent invalides à chaque redémarrage du serveur.
+            log.warn("JWT_SECRET absent : clé aléatoire générée, les jetons ne survivront pas au redémarrage");
+            this.cle = Jwts.SIG.HS256.key().build();
+        } else {
+            // hmacShaKeyFor refuse une clé de moins de 256 bits : une configuration faible
+            // fait échouer le démarrage au lieu de passer inaperçue.
+            this.cle = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        }
         this.dureeValiditeMs = dureeValiditeMs;
     }
 

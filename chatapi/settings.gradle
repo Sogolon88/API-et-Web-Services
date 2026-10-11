@@ -1,1 +1,6 @@
+// Télécharge automatiquement le JDK 21 demandé par la toolchain s'il n'est pas installé sur la machine.
+plugins {
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'chatapi'
