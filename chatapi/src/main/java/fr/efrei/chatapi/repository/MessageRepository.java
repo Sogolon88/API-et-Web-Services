@@ -20,9 +20,9 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("""
             SELECT m
             FROM Message m
-            WHERE (m.senderId = :currentUserId AND m.receiverId = :utilisateurId)
-               OR (m.senderId = :utilisateurId AND m.receiverId = :currentUserId)
-            ORDER BY m.dateSent ASC
+            WHERE (m.expediteurId = :currentUserId AND m.destinataireId = :utilisateurId)
+               OR (m.expediteurId = :utilisateurId AND m.destinataireId = :currentUserId)
+            ORDER BY m.dateEnvoi ASC
             """)
     List<Message> findMessages(@Param("currentUserId") Long currentUserId,
                                @Param("utilisateurId") Long utilisateurId);

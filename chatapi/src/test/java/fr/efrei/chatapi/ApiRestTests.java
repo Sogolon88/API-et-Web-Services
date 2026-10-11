@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.jayway.jsonpath.JsonPath;
 
 import fr.efrei.chatapi.model.Message;
+import fr.efrei.chatapi.model.StatutMessage;
 import fr.efrei.chatapi.repository.MessageRepository;
 import fr.efrei.chatapi.repository.UtilisateurRepository;
 
@@ -130,6 +131,7 @@ class ApiRestTests {
         LocalDateTime debut = LocalDateTime.of(2026, 9, 21, 10, 15, 30);
         enregistrerMessage(fodeId, seyniId, "Salut Seyni", debut.plusMinutes(1));
         enregistrerMessage(seyniId, fodeId, "Bonjour Fode", debut);
+        assertThat(messageRepository.findAll()).allMatch(m -> m.getStatut() == StatutMessage.ENVOYE);
 
         for (String utilisateur : new String[] {"seyni", "fode"}) {
             Long interlocuteurId = utilisateur.equals("seyni") ? fodeId : seyniId;
@@ -172,10 +174,10 @@ class ApiRestTests {
 
     private void enregistrerMessage(Long expediteurId, Long destinataireId, String contenu, LocalDateTime date) {
         Message message = new Message();
-        message.setSenderId(expediteurId);
-        message.setReceiverId(destinataireId);
-        message.setContent(contenu);
-        message.setDateSent(date);
+        message.setExpediteurId(expediteurId);
+        message.setDestinataireId(destinataireId);
+        message.setContenu(contenu);
+        message.setDateEnvoi(date);
         messageRepository.save(message);
     }
 }
