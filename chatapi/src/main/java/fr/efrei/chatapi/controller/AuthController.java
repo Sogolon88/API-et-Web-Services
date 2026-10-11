@@ -15,12 +15,18 @@ import fr.efrei.chatapi.dto.IdentifiantsRequest;
 import fr.efrei.chatapi.model.Utilisateur;
 import fr.efrei.chatapi.security.JwtService;
 import fr.efrei.chatapi.service.UtilisateurService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Connexion : échange des identifiants contre un JWT que le client joindra ensuite
  * à chaque requête protégée et à l'ouverture du WebSocket.
  */
+@Tag(name = "Authentification")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -31,6 +37,10 @@ public class AuthController {
     private final JwtService jwtService;
 
     // Pas de @Valid ici : un identifiant mal formé est simplement un échec d'authentification (401).
+    @Operation(summary = "Se connecter et recevoir un JWT")
+    @SecurityRequirements
+    @ApiResponse(responseCode = "200", description = "Jeton émis")
+    @ApiResponse(responseCode = "401", description = "Identifiants invalides", content = @Content)
     @PostMapping("/login")
     public ConnexionResponse login(@RequestBody IdentifiantsRequest identifiants) {
         try {

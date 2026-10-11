@@ -117,6 +117,18 @@ class ApiRestTests {
     }
 
     @Test
+    void documentationOpenApiAccessibleSansJeton() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/comptes'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/utilisateurs'].get").exists())
+                // L'utilisateur connecté vient du jeton : il ne doit pas apparaître comme paramètre.
+                .andExpect(jsonPath("$.paths['/api/messages/{utilisateurId}'].get.parameters", hasSize(1)))
+                .andExpect(jsonPath("$.components.securitySchemes.jwt.scheme").value("bearer"));
+    }
+
+    @Test
     void listeDesUtilisateursAvecJeton() throws Exception {
         creerCompte("seyni", MOT_DE_PASSE);
         creerCompte("fode", MOT_DE_PASSE);

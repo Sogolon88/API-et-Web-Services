@@ -54,6 +54,9 @@ public class SecurityConfig {
                         // Fichiers du client web, listés un par un : ils ne contiennent aucune donnée,
                         // et toute autre ressource reste protégée par défaut.
                         .requestMatchers(HttpMethod.GET, "/", "/index.html", "/chat.js", "/chat.css").permitAll()
+                        // Documentation OpenAPI publique : elle décrit l'API, les endpoints restent protégés.
+                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                        .permitAll()
                         .anyRequest().authenticated())
                 // Par défaut Spring répond 403 ; le sujet exige 401 pour une requête sans jeton valide.
                 .exceptionHandling(exceptions -> exceptions
