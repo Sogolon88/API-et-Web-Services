@@ -145,6 +145,17 @@ button.lien {
     color: var(--encre-douce);
 }
 
+/* Signature des auteurs : filet d'accent et serif, comme les titres. */
+.auteurs {
+    margin: 1.4rem 0 0;
+    padding-top: 0.8rem;
+    max-width: 26rem;
+    border-top: 2px solid var(--accent);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-style: italic;
+}
+
 .autre-version {
     align-self: center;
     font-size: 0.85rem;

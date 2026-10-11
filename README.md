@@ -212,4 +212,4 @@ API-et-Web-Services/
 
 ---
 
-Projet réalisé en deuxième année du cycle ingénieur Big Data & Machine Learning, EFREI.
+Projet réalisé par Fode Laye Keita et Balde Seyni Junior, en deuxième année du cycle ingénieur Big Data & Machine Learning, EFREI.
