@@ -644,7 +644,7 @@
             "description": "## Mot de passe trop court : 400\n\n`password` fait moins de 6 caractères : la validation `@Valid` du DTO `IdentifiantsRequest` rejette la requête avec **400 Bad Request** avant tout accès à la base.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"charlie-{{$timestamp}}\",\n  \"password\": \"123\"\n}",
+              "raw": "{\n  \"username\": \"seyni-court-{{$timestamp}}\",\n  \"password\": \"123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
