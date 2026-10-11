@@ -223,6 +223,23 @@ class WebSocketTests {
     }
 
     @Test
+    void envoiEnRafaleLimite() throws Exception {
+        BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);
+
+        // Limite de 5 messages dans le profil de test : le sixième est refusé et n'est pas enregistré.
+        for (int i = 1; i <= 6; i++) {
+            sessionSeyni.sendMessage(new TextMessage("""
+                    {"type":"message","destinataireId":%d,"contenu":"Message %d"}
+                    """.formatted(fode.getId(), i)));
+        }
+
+        assertThat(prochaine(recusParSeyni, "erreur").path("code").asString()).isEqualTo("LIMITE_DEPASSEE");
+        assertThat(messageRepository.count()).isEqualTo(5);
+        assertThat(sessionSeyni.isOpen()).isTrue();
+    }
+
+    @Test
     void tramesInvalidesRenvoientUneErreurSansFermerLeCanal() throws Exception {
         BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
         WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);

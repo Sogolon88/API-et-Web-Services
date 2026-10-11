@@ -18,6 +18,7 @@ import fr.efrei.chatapi.dto.TrameEntrante;
 import fr.efrei.chatapi.model.StatutMessage;
 import fr.efrei.chatapi.security.UtilisateurConnecte;
 import fr.efrei.chatapi.service.MessageService;
+import fr.efrei.chatapi.service.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -33,6 +34,7 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
     private final SessionRegistry sessionRegistry;
     private final MessageService messageService;
+    private final RateLimiter rateLimiter;
     private final JsonMapper jsonMapper;
 
     @Override
@@ -79,6 +81,11 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
      * avant de pouvoir recevoir un accusé qui s'y rapporte.
      */
     private void traiterMessage(UtilisateurConnecte moi, WebSocketSession session, TrameEntrante trame) {
+        // Vérifiée avant tout accès à la base : un envoi en rafale ne coûte rien au serveur.
+        if (!rateLimiter.autoriser(moi.id())) {
+            repondreErreur(moi, session, "LIMITE_DEPASSEE", "Trop de messages envoyés, réessayez dans quelques secondes");
+            return;
+        }
         MessageDto message;
         try {
             // L'expéditeur est celui du jeton vérifié au handshake, jamais celui du JSON reçu.
