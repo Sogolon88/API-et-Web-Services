@@ -207,6 +207,22 @@ class WebSocketTests {
     }
 
     @Test
+    void saisieRelayeeAuDestinataireSansEtreEnregistree() throws Exception {
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), new LinkedBlockingQueue<>());
+        BlockingQueue<String> recusParFode = new LinkedBlockingQueue<>();
+        connecter(jwtService.genererToken(fode), recusParFode);
+
+        sessionSeyni.sendMessage(new TextMessage("""
+                {"type":"saisie","expediteurId":999,"destinataireId":%d,"enCours":true}
+                """.formatted(fode.getId())));
+
+        JsonNode saisie = prochaine(recusParFode, "saisie");
+        assertThat(saisie.path("expediteurId").asLong()).isEqualTo(seyni.getId());
+        assertThat(saisie.path("enCours").asBoolean()).isTrue();
+        assertThat(messageRepository.count()).isZero();
+    }
+
+    @Test
     void tramesInvalidesRenvoientUneErreurSansFermerLeCanal() throws Exception {
         BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
         WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);

@@ -13,6 +13,7 @@ import fr.efrei.chatapi.dto.ErreurSortante;
 import fr.efrei.chatapi.dto.MessageDto;
 import fr.efrei.chatapi.dto.MessageSortant;
 import fr.efrei.chatapi.dto.PresenceSortante;
+import fr.efrei.chatapi.dto.SaisieSortante;
 import fr.efrei.chatapi.dto.TrameEntrante;
 import fr.efrei.chatapi.model.StatutMessage;
 import fr.efrei.chatapi.security.UtilisateurConnecte;
@@ -66,6 +67,7 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
         switch (String.valueOf(trame.type())) {
             case "message" -> traiterMessage(moi, session, trame);
             case "lu" -> traiterLu(moi, session, trame);
+            case "saisie" -> traiterSaisie(moi, session, trame);
             default -> repondreErreur(moi, session, "TYPE_INCONNU",
                     "Type de trame non pris en charge : " + trame.type());
         }
@@ -101,6 +103,16 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         accuser(messageService.marquerLus(moi.id(), trame.interlocuteurId()), StatutMessage.LU);
+    }
+
+    // Simple relais sans accès à la base : l'indicateur est éphémère et envoyé à chaque frappe.
+    private void traiterSaisie(UtilisateurConnecte moi, WebSocketSession session, TrameEntrante trame) {
+        if (trame.destinataireId() == null) {
+            repondreErreur(moi, session, "MESSAGE_INVALIDE", "destinataireId manquant");
+            return;
+        }
+        sessionRegistry.envoyer(trame.destinataireId(),
+                jsonMapper.writeValueAsString(new SaisieSortante(moi.id(), Boolean.TRUE.equals(trame.enCours()))));
     }
 
     // Prévient l'expéditeur de chaque message ; s'il est hors ligne, il verra le statut dans l'historique.

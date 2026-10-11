@@ -10,8 +10,17 @@ const etat = {
     interlocuteurId: null,
     socket: null,
     // Mes bulles de la conversation ouverte, par id de message, pour y reporter les accusés.
-    bulles: new Map()
+    bulles: new Map(),
+    // Destinataire prévenu que j'écris (null sinon), et minuteurs de l'indicateur de saisie.
+    saisieVers: null,
+    minuteurSaisie: null,
+    minuteurIndicateur: null
 };
+
+// Sans frappe pendant ce délai, la saisie est considérée comme terminée.
+const DELAI_FIN_SAISIE_MS = 2000;
+// Filet de sécurité : l'indicateur s'efface seul si la fin de saisie n'arrive jamais (appareil déconnecté).
+const DUREE_MAX_INDICATEUR_MS = 5000;
 
 const el = id => document.getElementById(id);
 
@@ -81,6 +90,8 @@ function demarrer() {
 }
 
 function deconnecter(raison) {
+    arreterSaisie();
+    afficherIndicateurSaisie(false);
     const socket = etat.socket;
     etat.socket = null;
     if (socket) {
@@ -116,6 +127,9 @@ function traiterTrame(trame) {
         case "accuse":
             recevoirAccuse(trame);
             break;
+        case "saisie":
+            recevoirSaisie(trame);
+            break;
         case "presence":
             changerPresence(trame);
             break;
@@ -132,6 +146,7 @@ function recevoirMessage(message) {
     if (interlocuteurId === etat.interlocuteurId) {
         ajouterBulle(message);
         if (!deMoi) {
+            afficherIndicateurSaisie(false);
             envoyerLu(interlocuteurId);
         }
         return;
@@ -151,10 +166,53 @@ function recevoirAccuse(accuse) {
     }
 }
 
+// Renvoie false si le canal n'est pas ouvert : la trame n'est alors pas envoyée.
+function envoyerTrame(trame) {
+    if (!etat.socket || etat.socket.readyState !== WebSocket.OPEN) {
+        return false;
+    }
+    etat.socket.send(JSON.stringify(trame));
+    return true;
+}
+
 // Signale au serveur que la conversation est affichée : ses messages passent en LU.
 function envoyerLu(interlocuteurId) {
-    if (etat.socket && etat.socket.readyState === WebSocket.OPEN) {
-        etat.socket.send(JSON.stringify({type: "lu", interlocuteurId}));
+    envoyerTrame({type: "lu", interlocuteurId});
+}
+
+// Appelée à chaque frappe : une seule trame au début de la saisie, une autre après un temps d'inactivité.
+function signalerSaisie() {
+    if (!el("contenu").value.trim()) {
+        arreterSaisie();
+        return;
+    }
+    if (etat.saisieVers === null
+        && envoyerTrame({type: "saisie", destinataireId: etat.interlocuteurId, enCours: true})) {
+        etat.saisieVers = etat.interlocuteurId;
+    }
+    clearTimeout(etat.minuteurSaisie);
+    etat.minuteurSaisie = setTimeout(arreterSaisie, DELAI_FIN_SAISIE_MS);
+}
+
+function arreterSaisie() {
+    clearTimeout(etat.minuteurSaisie);
+    if (etat.saisieVers !== null) {
+        envoyerTrame({type: "saisie", destinataireId: etat.saisieVers, enCours: false});
+        etat.saisieVers = null;
+    }
+}
+
+function recevoirSaisie(saisie) {
+    if (saisie.expediteurId === etat.interlocuteurId) {
+        afficherIndicateurSaisie(saisie.enCours);
+    }
+}
+
+function afficherIndicateurSaisie(visible) {
+    clearTimeout(etat.minuteurIndicateur);
+    el("saisie").hidden = !visible;
+    if (visible) {
+        etat.minuteurIndicateur = setTimeout(() => afficherIndicateurSaisie(false), DUREE_MAX_INDICATEUR_MS);
     }
 }
 
@@ -166,6 +224,9 @@ function changerPresence(presence) {
         return;
     }
     utilisateur.enLigne = presence.enLigne;
+    if (!presence.enLigne && presence.utilisateurId === etat.interlocuteurId) {
+        afficherIndicateurSaisie(false);
+    }
     afficherUtilisateurs();
 }
 
@@ -210,6 +271,8 @@ function afficherUtilisateurs() {
 
 async function ouvrirConversation(id) {
     const interlocuteur = etat.utilisateurs.get(id);
+    arreterSaisie();
+    afficherIndicateurSaisie(false);
     etat.interlocuteurId = id;
     interlocuteur.nonLus = 0;
     afficherUtilisateurs();
@@ -234,6 +297,8 @@ async function ouvrirConversation(id) {
 }
 
 function fermerConversation() {
+    arreterSaisie();
+    afficherIndicateurSaisie(false);
     etat.interlocuteurId = null;
     document.body.classList.remove("conversation-ouverte");
     afficherUtilisateurs();
@@ -272,13 +337,13 @@ function envoyerMessage(evenement) {
     if (!contenu || etat.interlocuteurId === null) {
         return;
     }
-    if (!etat.socket || etat.socket.readyState !== WebSocket.OPEN) {
+    arreterSaisie();
+    // Ni expéditeur ni date : le serveur les fixe à partir du jeton et de son horloge.
+    // La bulle sera affichée à la réception de l'écho, avec l'id et la date du serveur.
+    if (!envoyerTrame({type: "message", destinataireId: etat.interlocuteurId, contenu})) {
         afficherStatut("Connexion temps réel indisponible, rechargez la page", true);
         return;
     }
-    // Ni expéditeur ni date : le serveur les fixe à partir du jeton et de son horloge.
-    // La bulle sera affichée à la réception de l'écho, avec l'id et la date du serveur.
-    etat.socket.send(JSON.stringify({type: "message", destinataireId: etat.interlocuteurId, contenu}));
     champ.value = "";
 }
 
@@ -294,6 +359,7 @@ el("bouton-creer").addEventListener("click", () => {
 el("bouton-deconnexion").addEventListener("click", () => deconnecter());
 el("bouton-retour").addEventListener("click", fermerConversation);
 el("form-message").addEventListener("submit", envoyerMessage);
+el("contenu").addEventListener("input", signalerSaisie);
 
 if (etat.token && etat.moi) {
     demarrer();

@@ -144,6 +144,12 @@ main {
     font-size: 1.1rem;
 }
 
+#saisie {
+    color: #1f7a5c;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
 #messages {
     flex: 1;
     overflow-y: auto;
