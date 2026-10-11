@@ -19,12 +19,13 @@ public class OpenApiConfig {
     private static final String SCHEMA_JWT = "jwt";
 
     // OpenAPI ne décrit que HTTP : le protocole WebSocket est résumé dans la description.
+    // Swagger UI l'affiche en Markdown : les chevrons sont placés dans du code, sinon ils seraient lus comme du HTML.
     private static final String DESCRIPTION = """
             API REST de la messagerie : comptes, connexion, utilisateurs et historique.
             Sauf la création de compte et la connexion, chaque requête exige l'en-tête
-            "Authorization: Bearer <jeton>", sinon le serveur répond 401.
+            `Authorization: Bearer <jeton>`, sinon le serveur répond 401.
 
-            Le temps réel passe par le WebSocket ws://<hôte>:8080/ws/messages?token=<jeton>, avec les trames JSON
+            Le temps réel passe par le WebSocket `ws://<hôte>:8080/ws/messages?token=<jeton>`, avec les trames JSON
             message, accuse, lu, saisie, presence et erreur (voir le README).
             """;
 
