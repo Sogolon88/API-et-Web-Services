@@ -110,6 +110,13 @@ class ApiRestTests {
     }
 
     @Test
+    void clientWebAccessibleSansJeton() throws Exception {
+        mockMvc.perform(get("/index.html")).andExpect(status().isOk());
+        mockMvc.perform(get("/chat.js")).andExpect(status().isOk());
+        mockMvc.perform(get("/chat.css")).andExpect(status().isOk());
+    }
+
+    @Test
     void listeDesUtilisateursAvecJeton() throws Exception {
         creerCompte("seyni", MOT_DE_PASSE);
         creerCompte("fode", MOT_DE_PASSE);

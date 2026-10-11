@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ChatAPI</title>
+    <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+<section id="vue-connexion">
+    <h1>ChatAPI</h1>
+    <form id="form-connexion">
+        <input id="username" autocomplete="username" placeholder="Nom d'utilisateur" required>
+        <input id="password" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+        <button type="submit">Se connecter</button>
+        <button type="button" id="bouton-creer" class="secondaire">Créer un compte</button>
+    </form>
+</section>
+
+<section id="vue-chat" hidden>
+    <header>
+        <span id="moi"></span>
+        <button type="button" id="bouton-deconnexion" class="secondaire">Déconnexion</button>
+    </header>
+    <div class="corps">
+        <aside>
+            <ul id="liste-utilisateurs"></ul>
+        </aside>
+        <main>
+            <div class="entete-conversation">
+                <button type="button" id="bouton-retour" class="secondaire">Retour</button>
+                <h2 id="titre-conversation">Choisissez un contact</h2>
+            </div>
+            <div id="messages"></div>
+            <form id="form-message">
+                <input id="contenu" maxlength="2000" autocomplete="off" placeholder="Message" disabled>
+                <button type="submit" disabled>Envoyer</button>
+            </form>
+        </main>
+    </div>
+</section>
+
+<p id="statut" role="status"></p>
+
+<script src="chat.js"></script>
+</body>
+</html>
