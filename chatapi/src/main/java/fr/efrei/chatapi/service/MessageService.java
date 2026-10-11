@@ -54,8 +54,41 @@ public class MessageService {
         return MessageDto.depuis(messageRepository.save(message));
     }
 
+    // Renvoie false si le message avait déjà avancé (lu entre-temps) : aucun accusé LIVRE n'est alors dû.
     @Transactional
-    public void marquerLivre(Long messageId) {
-        messageRepository.changerStatut(messageId, StatutMessage.LIVRE);
+    public boolean marquerLivre(Long messageId) {
+        StatutMessage livre = StatutMessage.LIVRE;
+        return messageRepository.avancerStatut(List.of(messageId), livre, livre.precedents()) > 0;
+    }
+
+    /**
+     * Passe en LIVRE les messages reçus pendant que l'utilisateur était hors ligne.
+     *
+     * @return les messages concernés, pour prévenir leurs expéditeurs
+     */
+    @Transactional
+    public List<MessageDto> livrerEnAttente(Long destinataireId) {
+        StatutMessage livre = StatutMessage.LIVRE;
+        return avancer(messageRepository.findByDestinataireIdAndStatutIn(destinataireId, livre.precedents()), livre);
+    }
+
+    /**
+     * Passe en LU les messages qu'un interlocuteur a envoyés au lecteur et qui n'étaient pas encore lus.
+     *
+     * @return les messages concernés, pour prévenir leur expéditeur
+     */
+    @Transactional
+    public List<MessageDto> marquerLus(Long lecteurId, Long interlocuteurId) {
+        StatutMessage lu = StatutMessage.LU;
+        return avancer(messageRepository.findByExpediteurIdAndDestinataireIdAndStatutIn(
+                interlocuteurId, lecteurId, lu.precedents()), lu);
+    }
+
+    private List<MessageDto> avancer(List<Message> messages, StatutMessage statut) {
+        if (messages.isEmpty()) {
+            return List.of();
+        }
+        messageRepository.avancerStatut(messages.stream().map(Message::getId).toList(), statut, statut.precedents());
+        return messages.stream().map(MessageDto::depuis).toList();
     }
 }

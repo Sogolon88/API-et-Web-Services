@@ -128,8 +128,9 @@ class WebSocketTests {
     }
 
     @Test
-    void messageEnregistrePuisRelayeAuDestinataireConnecte() throws Exception {
-        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), new LinkedBlockingQueue<>());
+    void messageEnregistreRenvoyeALExpediteurPuisRelayeEtAccuseLivre() throws Exception {
+        BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);
         BlockingQueue<String> recusParFode = new LinkedBlockingQueue<>();
         connecter(jwtService.genererToken(fode), recusParFode);
 
@@ -139,31 +140,70 @@ class WebSocketTests {
                  "contenu":"Bonjour Fode","dateEnvoi":"2000-01-01T00:00:00"}
                 """.formatted(fode.getId())));
 
-        JsonNode recu = jsonMapper.readTree(recusParFode.poll(DELAI_SECONDES, TimeUnit.SECONDS));
-        assertThat(recu.path("type").asString()).isEqualTo("message");
+        JsonNode recu = prochaine(recusParFode, "message");
         assertThat(recu.path("expediteurId").asLong()).isEqualTo(seyni.getId());
         assertThat(recu.path("destinataireId").asLong()).isEqualTo(fode.getId());
         assertThat(recu.path("contenu").asString()).isEqualTo("Bonjour Fode");
         assertThat(LocalDateTime.parse(recu.path("dateEnvoi").asString()))
                 .isAfter(LocalDateTime.now().minusMinutes(1));
 
-        // Le statut passe à LIVRE juste après l'envoi, dans le thread du serveur : on l'attend.
-        attendre(() -> messageRepository.findById(recu.path("id").asLong())
-                .map(m -> m.getStatut() == StatutMessage.LIVRE).orElse(false));
+        // L'expéditeur reçoit d'abord l'écho (id et date du serveur), puis l'accusé de livraison.
+        JsonNode echo = prochaine(recusParSeyni, "message");
+        assertThat(echo.path("id").asLong()).isEqualTo(recu.path("id").asLong());
+        assertThat(echo.path("statut").asString()).isEqualTo("ENVOYE");
+        JsonNode accuse = prochaine(recusParSeyni, "accuse");
+        assertThat(accuse.path("messageId").asLong()).isEqualTo(recu.path("id").asLong());
+        assertThat(accuse.path("statut").asString()).isEqualTo("LIVRE");
+        assertThat(messageRepository.findById(recu.path("id").asLong()).orElseThrow().getStatut())
+                .isEqualTo(StatutMessage.LIVRE);
     }
 
     @Test
-    void messagePourUnDestinataireHorsLigneResteEnBase() throws Exception {
-        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), new LinkedBlockingQueue<>());
+    void messagePourUnDestinataireHorsLigneLivreASaConnexion() throws Exception {
+        BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);
 
         sessionSeyni.sendMessage(new TextMessage("""
                 {"type":"message","destinataireId":%d,"contenu":"Tu es là ?"}
                 """.formatted(fode.getId())));
 
-        attendre(() -> messageRepository.count() == 1);
-        Message enregistre = messageRepository.findAll().getFirst();
+        long id = prochaine(recusParSeyni, "message").path("id").asLong();
+        Message enregistre = messageRepository.findById(id).orElseThrow();
         assertThat(enregistre.getExpediteurId()).isEqualTo(seyni.getId());
         assertThat(enregistre.getStatut()).isEqualTo(StatutMessage.ENVOYE);
+
+        connecter(jwtService.genererToken(fode), new LinkedBlockingQueue<>());
+        JsonNode accuse = prochaine(recusParSeyni, "accuse");
+        assertThat(accuse.path("messageId").asLong()).isEqualTo(id);
+        assertThat(accuse.path("statut").asString()).isEqualTo("LIVRE");
+    }
+
+    @Test
+    void lectureDeLaConversationAccuseeLu() throws Exception {
+        BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);
+        BlockingQueue<String> recusParFode = new LinkedBlockingQueue<>();
+        WebSocketSession sessionFode = connecter(jwtService.genererToken(fode), recusParFode);
+
+        sessionSeyni.sendMessage(new TextMessage("""
+                {"type":"message","destinataireId":%d,"contenu":"Bonjour Fode"}
+                """.formatted(fode.getId())));
+        long id = prochaine(recusParFode, "message").path("id").asLong();
+
+        sessionFode.sendMessage(new TextMessage("""
+                {"type":"lu","interlocuteurId":%d}
+                """.formatted(seyni.getId())));
+
+        // Selon l'ordre des threads, l'accusé LIVRE peut précéder l'accusé LU ou ne pas être envoyé,
+        // mais il ne doit jamais le suivre : le statut ne recule pas.
+        JsonNode accuse = prochaine(recusParSeyni, "accuse");
+        if (accuse.path("statut").asString().equals("LIVRE")) {
+            accuse = prochaine(recusParSeyni, "accuse");
+        }
+        assertThat(accuse.path("messageId").asLong()).isEqualTo(id);
+        assertThat(accuse.path("statut").asString()).isEqualTo("LU");
+        assertThat(recusParSeyni.poll(300, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(messageRepository.findById(id).orElseThrow().getStatut()).isEqualTo(StatutMessage.LU);
     }
 
     @Test
@@ -185,6 +225,9 @@ class WebSocketTests {
         sessionSeyni.sendMessage(new TextMessage("""
                 {"type":"message","destinataireId":-1,"contenu":"Bonjour"}
                 """));
+        assertThat(codeErreur(recusParSeyni)).isEqualTo("MESSAGE_INVALIDE");
+
+        sessionSeyni.sendMessage(new TextMessage("{\"type\":\"lu\"}"));
         assertThat(codeErreur(recusParSeyni)).isEqualTo("MESSAGE_INVALIDE");
 
         assertThat(sessionSeyni.isOpen()).isTrue();
@@ -212,6 +255,19 @@ class WebSocketTests {
                 .get(DELAI_SECONDES, TimeUnit.SECONDS);
         sessionsOuvertes.add(session);
         return session;
+    }
+
+    // Prochaine trame du type attendu ; les autres (présence, écho) sont ignorées.
+    private JsonNode prochaine(BlockingQueue<String> recus, String type) throws Exception {
+        long limite = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(DELAI_SECONDES);
+        while (true) {
+            String texte = recus.poll(limite - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            assertThat(texte).as("aucune trame \"%s\" reçue à temps", type).isNotNull();
+            JsonNode trame = jsonMapper.readTree(texte);
+            if (trame.path("type").asString().equals(type)) {
+                return trame;
+            }
+        }
     }
 
     private String codeErreur(BlockingQueue<String> recus) throws Exception {

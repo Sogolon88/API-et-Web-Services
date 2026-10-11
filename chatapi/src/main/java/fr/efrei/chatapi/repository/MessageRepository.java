@@ -30,8 +30,21 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findMessages(@Param("currentUserId") Long currentUserId,
                                @Param("utilisateurId") Long utilisateurId);
 
-    // Mise à jour directe en une requête, sans relire l'entité au préalable.
+    // Messages reçus en attente de livraison, ou pas encore lus, selon les statuts demandés.
+    List<Message> findByDestinataireIdAndStatutIn(Long destinataireId, List<StatutMessage> statuts);
+
+    List<Message> findByExpediteurIdAndDestinataireIdAndStatutIn(Long expediteurId, Long destinataireId,
+                                                                 List<StatutMessage> statuts);
+
+    /**
+     * Fait avancer le statut de plusieurs messages en une requête, sans relire les entités.
+     * La condition sur les statuts précédents empêche tout retour en arrière, par exemple
+     * un LIVRE tardif qui écraserait un LU arrivé entre-temps depuis un autre thread.
+     *
+     * @return le nombre de messages réellement modifiés
+     */
     @Modifying
-    @Query("UPDATE Message m SET m.statut = :statut WHERE m.id = :id")
-    void changerStatut(@Param("id") Long id, @Param("statut") StatutMessage statut);
+    @Query("UPDATE Message m SET m.statut = :statut WHERE m.id IN :ids AND m.statut IN :precedents")
+    int avancerStatut(@Param("ids") List<Long> ids, @Param("statut") StatutMessage statut,
+                      @Param("precedents") List<StatutMessage> precedents);
 }

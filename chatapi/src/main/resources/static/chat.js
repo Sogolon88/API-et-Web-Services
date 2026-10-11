@@ -1,5 +1,5 @@
 // Client de ChatAPI : REST pour le compte, la liste des utilisateurs et l'historique,
-// WebSocket pour recevoir les messages et la présence en temps réel.
+// WebSocket pour recevoir les messages, les accusés et la présence en temps réel.
 "use strict";
 
 // sessionStorage est propre à chaque onglet : deux utilisateurs peuvent tester côte à côte sur un même PC.
@@ -8,10 +8,16 @@ const etat = {
     moi: JSON.parse(sessionStorage.getItem("moi") || "null"),
     utilisateurs: new Map(),
     interlocuteurId: null,
-    socket: null
+    socket: null,
+    // Mes bulles de la conversation ouverte, par id de message, pour y reporter les accusés.
+    bulles: new Map()
 };
 
 const el = id => document.getElementById(id);
+
+// Ordre du cycle de vie : un accusé n'est appliqué que s'il fait avancer le statut affiché.
+const RANG_STATUT = {ENVOYE: 0, LIVRE: 1, LU: 2};
+const LIBELLE_STATUT = {ENVOYE: "Envoyé", LIVRE: "Livré", LU: "Lu"};
 
 const MESSAGES_HTTP = {
     400: "Nom d'au moins 3 caractères et mot de passe d'au moins 6 caractères",
@@ -81,7 +87,7 @@ function deconnecter(raison) {
         socket.close();
     }
     sessionStorage.clear();
-    Object.assign(etat, {token: null, moi: null, interlocuteurId: null, utilisateurs: new Map()});
+    Object.assign(etat, {token: null, moi: null, interlocuteurId: null, utilisateurs: new Map(), bulles: new Map()});
     document.body.classList.remove("conversation-ouverte");
     el("vue-chat").hidden = true;
     el("vue-connexion").hidden = false;
@@ -107,6 +113,9 @@ function traiterTrame(trame) {
         case "message":
             recevoirMessage(trame);
             break;
+        case "accuse":
+            recevoirAccuse(trame);
+            break;
         case "presence":
             changerPresence(trame);
             break;
@@ -116,15 +125,36 @@ function traiterTrame(trame) {
     }
 }
 
+// Reçoit aussi l'écho de mes propres messages, envoyés depuis cet appareil ou un autre.
 function recevoirMessage(message) {
-    if (message.expediteurId === etat.interlocuteurId) {
+    const deMoi = message.expediteurId === etat.moi.id;
+    const interlocuteurId = deMoi ? message.destinataireId : message.expediteurId;
+    if (interlocuteurId === etat.interlocuteurId) {
         ajouterBulle(message);
+        if (!deMoi) {
+            envoyerLu(interlocuteurId);
+        }
         return;
     }
-    const expediteur = etat.utilisateurs.get(message.expediteurId);
-    if (expediteur) {
-        expediteur.nonLus++;
+    const interlocuteur = etat.utilisateurs.get(interlocuteurId);
+    if (interlocuteur && !deMoi) {
+        interlocuteur.nonLus++;
         afficherUtilisateurs();
+    }
+}
+
+function recevoirAccuse(accuse) {
+    const bulle = etat.bulles.get(accuse.messageId);
+    if (bulle && RANG_STATUT[accuse.statut] > RANG_STATUT[bulle.statut]) {
+        bulle.statut = accuse.statut;
+        bulle.element.textContent = LIBELLE_STATUT[accuse.statut];
+    }
+}
+
+// Signale au serveur que la conversation est affichée : ses messages passent en LU.
+function envoyerLu(interlocuteurId) {
+    if (etat.socket && etat.socket.readyState === WebSocket.OPEN) {
+        etat.socket.send(JSON.stringify({type: "lu", interlocuteurId}));
     }
 }
 
@@ -186,6 +216,7 @@ async function ouvrirConversation(id) {
     document.body.classList.add("conversation-ouverte");
     el("titre-conversation").textContent = interlocuteur.username;
     el("messages").replaceChildren();
+    etat.bulles = new Map();
     for (const element of el("form-message").elements) {
         element.disabled = false;
     }
@@ -194,6 +225,7 @@ async function ouvrirConversation(id) {
         const historique = await api("GET", "/api/messages/" + id);
         if (etat.interlocuteurId === id) {
             historique.forEach(ajouterBulle);
+            envoyerLu(id);
         }
     } catch (e) {
         afficherStatut(e.message, true);
@@ -208,16 +240,26 @@ function fermerConversation() {
 }
 
 function ajouterBulle(message) {
+    // Un message peut arriver par le WebSocket pendant le chargement de l'historique : pas de doublon.
+    if (etat.bulles.has(message.id)) {
+        return;
+    }
+    const deMoi = message.expediteurId === etat.moi.id;
     const bulle = document.createElement("div");
-    bulle.className = "bulle " + (message.expediteurId === etat.moi.id ? "moi" : "autre");
+    bulle.className = "bulle " + (deMoi ? "moi" : "autre");
     const contenu = document.createElement("p");
     contenu.textContent = message.contenu;
-    // Un message que l'on vient d'envoyer n'a pas encore de date serveur : l'heure locale est affichée.
-    const heure = document.createElement("small");
-    heure.textContent = message.dateEnvoi
-        ? message.dateEnvoi.slice(11, 16)
-        : new Date().toTimeString().slice(0, 5);
-    bulle.append(contenu, heure);
+    // Date fixée par le serveur, au format "2026-09-21T10:15:30" : on garde l'heure et les minutes.
+    const pied = document.createElement("small");
+    pied.textContent = message.dateEnvoi.slice(11, 16);
+    const statut = document.createElement("span");
+    if (deMoi) {
+        statut.className = "statut";
+        statut.textContent = LIBELLE_STATUT[message.statut];
+        pied.append(" - ", statut);
+    }
+    etat.bulles.set(message.id, {element: statut, statut: message.statut});
+    bulle.append(contenu, pied);
     const zone = el("messages");
     zone.append(bulle);
     zone.scrollTop = zone.scrollHeight;
@@ -235,8 +277,8 @@ function envoyerMessage(evenement) {
         return;
     }
     // Ni expéditeur ni date : le serveur les fixe à partir du jeton et de son horloge.
+    // La bulle sera affichée à la réception de l'écho, avec l'id et la date du serveur.
     etat.socket.send(JSON.stringify({type: "message", destinataireId: etat.interlocuteurId, contenu}));
-    ajouterBulle({expediteurId: etat.moi.id, contenu});
     champ.value = "";
 }
 
