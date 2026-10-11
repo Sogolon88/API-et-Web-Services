@@ -33,6 +33,8 @@ import fr.efrei.chatapi.model.Utilisateur;
 import fr.efrei.chatapi.repository.MessageRepository;
 import fr.efrei.chatapi.repository.UtilisateurRepository;
 import fr.efrei.chatapi.security.JwtService;
+import fr.efrei.chatapi.service.UtilisateurService;
+import fr.efrei.chatapi.websocket.SessionRegistry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -64,6 +66,12 @@ class WebSocketTests {
     @Autowired
     private JsonMapper jsonMapper;
 
+    @Autowired
+    private SessionRegistry sessionRegistry;
+
+    @Autowired
+    private UtilisateurService utilisateurService;
+
     private final List<WebSocketSession> sessionsOuvertes = new ArrayList<>();
 
     private Utilisateur seyni;
@@ -77,11 +85,38 @@ class WebSocketTests {
         fode = creerUtilisateur("fode");
     }
 
+    // La fermeture est traitée côté serveur en différé : on attend qu'elle soit prise en compte
+    // pour qu'aucun événement de présence tardif n'arrive pendant le test suivant.
     @AfterEach
     void fermerLesSessions() throws Exception {
         for (WebSocketSession session : sessionsOuvertes) {
             session.close();
         }
+        attendre(() -> !sessionRegistry.estConnecte(seyni.getId()) && !sessionRegistry.estConnecte(fode.getId()));
+    }
+
+    @Test
+    void presenceDiffuseeALaPremiereConnexionEtALaDerniereDeconnexion() throws Exception {
+        BlockingQueue<String> recusParFode = new LinkedBlockingQueue<>();
+        connecter(jwtService.genererToken(fode), recusParFode);
+
+        WebSocketSession telephone = connecter(jwtService.genererToken(seyni), new LinkedBlockingQueue<>());
+        JsonNode enLigne = jsonMapper.readTree(recusParFode.poll(DELAI_SECONDES, TimeUnit.SECONDS));
+        assertThat(enLigne.path("type").asString()).isEqualTo("presence");
+        assertThat(enLigne.path("utilisateurId").asLong()).isEqualTo(seyni.getId());
+        assertThat(enLigne.path("enLigne").asBoolean()).isTrue();
+        assertThat(utilisateurService.lister())
+                .anyMatch(u -> u.id().equals(seyni.getId()) && u.enLigne());
+
+        // Un second appareil, puis la fermeture du premier : Seyni reste en ligne, rien n'est diffusé.
+        WebSocketSession ordinateur = connecter(jwtService.genererToken(seyni), new LinkedBlockingQueue<>());
+        telephone.close();
+        assertThat(recusParFode.poll(500, TimeUnit.MILLISECONDS)).isNull();
+
+        ordinateur.close();
+        JsonNode horsLigne = jsonMapper.readTree(recusParFode.poll(DELAI_SECONDES, TimeUnit.SECONDS));
+        assertThat(horsLigne.path("utilisateurId").asLong()).isEqualTo(seyni.getId());
+        assertThat(horsLigne.path("enLigne").asBoolean()).isFalse();
     }
 
     @Test

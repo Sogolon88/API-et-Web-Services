@@ -118,7 +118,8 @@ class ApiRestTests {
         mockMvc.perform(get("/api/utilisateurs").header(HttpHeaders.AUTHORIZATION, "Bearer " + jeton))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[*].password").isEmpty());
+                .andExpect(jsonPath("$[*].password").isEmpty())
+                .andExpect(jsonPath("$[0].enLigne").value(false));
     }
 
     @Test

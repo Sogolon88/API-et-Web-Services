@@ -11,6 +11,7 @@ import fr.efrei.chatapi.dto.IdentifiantsRequest;
 import fr.efrei.chatapi.dto.UtilisateurResponse;
 import fr.efrei.chatapi.model.Utilisateur;
 import fr.efrei.chatapi.repository.UtilisateurRepository;
+import fr.efrei.chatapi.websocket.SessionRegistry;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -19,6 +20,7 @@ public class UtilisateurService {
 
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SessionRegistry sessionRegistry;
 
     /**
      * Inscrit un utilisateur. Le doublon est détecté ici pour répondre 409 avec un message clair ;
@@ -32,12 +34,14 @@ public class UtilisateurService {
         utilisateur.setUsername(identifiants.username());
         // Le hachage est fait ici, au plus près de l'écriture en base, pour qu'aucun chemin ne l'oublie.
         utilisateur.setPassword(passwordEncoder.encode(identifiants.password()));
-        return UtilisateurResponse.depuis(utilisateurRepository.save(utilisateur));
+        // Un compte qui vient d'être créé n'a encore aucune connexion WebSocket ouverte.
+        return UtilisateurResponse.depuis(utilisateurRepository.save(utilisateur), false);
     }
 
+    // État de présence à l'instant de la requête; les changements suivants arrivent par le WebSocket.
     public List<UtilisateurResponse> lister() {
         return utilisateurRepository.findAll().stream()
-                .map(UtilisateurResponse::depuis)
+                .map(u -> UtilisateurResponse.depuis(u, sessionRegistry.estConnecte(u.getId())))
                 .toList();
     }
 

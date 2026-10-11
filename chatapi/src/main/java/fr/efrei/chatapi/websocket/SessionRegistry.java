@@ -3,6 +3,7 @@ package fr.efrei.chatapi.websocket;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -31,22 +32,48 @@ public class SessionRegistry {
     /**
      * Enregistre une session. Elle est enveloppée dans un décorateur car une WebSocketSession
      * n'accepte pas deux envois simultanés: le décorateur les met en file d'attente.
+     *
+     * @return true si c'est la première session de l'utilisateur, qui vient donc de passer en ligne
      */
-    public void ajouter(Long utilisateurId, WebSocketSession session) {
+    public boolean ajouter(Long utilisateurId, WebSocketSession session) {
         WebSocketSession protegee = new ConcurrentWebSocketSessionDecorator(session, DELAI_ENVOI_MS, TAMPON_OCTETS);
+        AtomicBoolean premiere = new AtomicBoolean();
         // compute est atomique : pas de course avec un retrait simultané de la même entrée.
         sessionsParUtilisateur.compute(utilisateurId, (id, sessions) -> {
+            premiere.set(sessions == null);
             Map<String, WebSocketSession> resultat = sessions != null ? sessions : new ConcurrentHashMap<>();
             resultat.put(session.getId(), protegee);
             return resultat;
         });
+        return premiere.get();
     }
 
-    public void retirer(Long utilisateurId, WebSocketSession session) {
+    /**
+     * Retire une session.
+     *
+     * @return true si c'était la dernière session de l'utilisateur, qui vient donc de passer hors ligne
+     */
+    public boolean retirer(Long utilisateurId, WebSocketSession session) {
+        AtomicBoolean derniere = new AtomicBoolean();
         // Renvoyer null supprime l'entrée: un utilisateur sans session n'apparaît plus dans la table.
         sessionsParUtilisateur.computeIfPresent(utilisateurId, (id, sessions) -> {
             sessions.remove(session.getId());
+            derniere.set(sessions.isEmpty());
             return sessions.isEmpty() ? null : sessions;
+        });
+        return derniere.get();
+    }
+
+    public boolean estConnecte(Long utilisateurId) {
+        return sessionsParUtilisateur.containsKey(utilisateurId);
+    }
+
+    // Diffuse un texte à tous les utilisateurs connectés sauf un (l'auteur de l'événement).
+    public void diffuser(String json, Long saufUtilisateurId) {
+        sessionsParUtilisateur.forEach((utilisateurId, sessions) -> {
+            if (!utilisateurId.equals(saufUtilisateurId)) {
+                sessions.values().forEach(session -> envoyerSur(session, json));
+            }
         });
     }
 

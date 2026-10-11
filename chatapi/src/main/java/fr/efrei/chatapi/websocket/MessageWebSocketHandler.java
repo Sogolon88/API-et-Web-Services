@@ -10,6 +10,7 @@ import fr.efrei.chatapi.dto.ErreurSortante;
 import fr.efrei.chatapi.dto.MessageDto;
 import fr.efrei.chatapi.dto.MessageEntrant;
 import fr.efrei.chatapi.dto.MessageSortant;
+import fr.efrei.chatapi.dto.PresenceSortante;
 import fr.efrei.chatapi.security.UtilisateurConnecte;
 import fr.efrei.chatapi.service.MessageService;
 import lombok.RequiredArgsConstructor;
@@ -30,12 +31,19 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        sessionRegistry.ajouter(utilisateur(session).id(), session);
+        Long id = utilisateur(session).id();
+        // Seule la première connexion change la présence: un second appareil ne déclenche rien.
+        if (sessionRegistry.ajouter(id, session)) {
+            diffuserPresence(id, true);
+        }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        sessionRegistry.retirer(utilisateur(session).id(), session);
+        Long id = utilisateur(session).id();
+        if (sessionRegistry.retirer(id, session)) {
+            diffuserPresence(id, false);
+        }
     }
 
     @Override
@@ -66,6 +74,11 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
         if (sessionRegistry.envoyer(message.destinataireId(), json)) {
             messageService.marquerLivre(message.id());
         }
+    }
+
+    // La présence est un événement éphémère: diffusée aux connectés, jamais enregistrée en base.
+    private void diffuserPresence(Long utilisateurId, boolean enLigne) {
+        sessionRegistry.diffuser(jsonMapper.writeValueAsString(new PresenceSortante(utilisateurId, enLigne)), utilisateurId);
     }
 
     private void repondreErreur(UtilisateurConnecte moi, WebSocketSession session, String code, String detail) {

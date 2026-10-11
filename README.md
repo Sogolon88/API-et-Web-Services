@@ -116,7 +116,7 @@ Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), G
 ```
 API-et-Web-Services/
 ├── README.md
-├── Projet_Messagerie_Instantanee.pdf        sujet
+├── sujet.pdf                                sujet du projet
 ├── postman/                                 collection Postman à importer
 └── chatapi/                                 serveur Spring Boot
     ├── build.gradle, settings.gradle
