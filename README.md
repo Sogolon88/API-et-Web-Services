@@ -9,11 +9,13 @@ Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échang
 | Fonctionnalité | Technologie | État |
 |---|---|---|
 | Création de compte et connexion | REST + JWT | Fait |
-| Liste des utilisateurs | REST | Fait (statut en ligne à venir) |
+| Liste des utilisateurs avec leur statut en ligne | REST | Fait |
 | Historique d'une conversation | REST | Fait |
 | Protection des endpoints (401 sans jeton valide) | Spring Security + JWT | Fait |
-| Envoi et réception en direct | WebSocket | En cours |
-| Clients mobile et bureau | HTML / CSS / JavaScript | En cours |
+| Envoi et réception en direct, message enregistré avant livraison | WebSocket | Fait |
+| Présence en ligne et hors ligne en direct | WebSocket | Fait |
+| Client web de test, utilisable sur téléphone et sur ordinateur | HTML / CSS / JavaScript | Fait |
+| Interfaces finales mobile et bureau | HTML / CSS / JavaScript | Prévu |
 | Bonus : accusés de lecture, indicateur de saisie, webhook hors ligne, limitation de débit, Swagger | REST et WebSocket | Prévu |
 
 ## Lancer le projet
@@ -27,6 +29,8 @@ cd chatapi
 ```
 
 Le serveur démarre sur **http://localhost:8080**. Le premier lancement est plus long, le temps de télécharger les dépendances.
+
+Ouvrir **http://localhost:8080** dans le navigateur affiche le client web. Pour essayer seul sur un ordinateur, ouvrir deux onglets et se connecter avec un compte différent dans chacun (par exemple `seyni` et `fode`) : chaque onglet garde son propre jeton.
 
 Par défaut :
 - les données sont enregistrées dans une base **H2** (`chatapi/data/`), elles sont conservées entre deux redémarrages ;
@@ -67,7 +71,7 @@ Tous les échanges sont en JSON. Sauf la création de compte et la connexion, ch
 |---|---|---|---|
 | `POST` | `/api/comptes` | Créer un compte | `201`, `400` données invalides, `409` nom déjà pris |
 | `POST` | `/api/auth/login` | Se connecter et recevoir un JWT | `200`, `401` identifiants invalides |
-| `GET` | `/api/utilisateurs` | Lister les utilisateurs | `200`, `401` |
+| `GET` | `/api/utilisateurs` | Lister les utilisateurs et leur statut `enLigne` | `200`, `401` |
 | `GET` | `/api/messages/{utilisateurId}` | Historique avec un utilisateur | `200`, `401` |
 
 **Créer un compte puis se connecter**
@@ -98,14 +102,47 @@ Content-Type: application/json
 
 Une collection Postman documentée et testée est fournie dans [`postman/`](postman/README.md).
 
-## Tester depuis un téléphone
+## WebSocket
 
-Disponible avec les clients web (en cours).
+Le temps réel passe par une connexion WebSocket ouverte avec le jeton obtenu à la connexion :
+
+```
+ws://localhost:8080/ws/messages?token=<jeton>
+```
+
+Sans jeton valide, la connexion est refusée (`401`). Le jeton est passé dans l'URL car un navigateur ne peut pas ajouter d'en-tête `Authorization` à une connexion WebSocket.
+
+| Type | Sens | Contenu |
+|---|---|---|
+| `message` | client vers serveur | `destinataireId`, `contenu` |
+| `message` | serveur vers destinataire | `id`, `expediteurId`, `destinataireId`, `contenu`, `dateEnvoi` |
+| `presence` | serveur vers les autres utilisateurs | `utilisateurId`, `enLigne` |
+| `erreur` | serveur vers l'émetteur | `code` (`FORMAT_INVALIDE`, `TYPE_INCONNU`, `MESSAGE_INVALIDE`), `detail` |
+
+**Envoyer un message**
+
+```json
+{ "type": "message", "destinataireId": 2, "contenu": "Bonjour !" }
+```
+
+**Message reçu par le destinataire**
+
+```json
+{ "type": "message", "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30" }
+```
+
+L'expéditeur est toujours celui du jeton et la date celle du serveur : un `expediteurId` ou une `dateEnvoi` envoyés par le client sont ignorés.
+
+Chaque message est enregistré en base avec le statut `ENVOYE` avant toute tentative de livraison. Si le destinataire est connecté, il le reçoit immédiatement et le statut passe à `LIVRE`. Sinon, le message reste en base et apparaît dans l'historique REST à sa prochaine connexion.
+
+## Tester depuis un téléphone
 
 1. Le téléphone et le PC sont sur le même réseau Wi-Fi.
 2. Récupérer l'adresse IPv4 du PC avec `ipconfig`.
 3. Autoriser le port 8080 dans le pare-feu Windows (réseau privé).
 4. Ouvrir `http://<IPv4 du PC>:8080` sur le téléphone.
+
+Un VPN actif sur le PC peut bloquer l'accès depuis le réseau local : autoriser le réseau local dans ses réglages ou le désactiver le temps du test.
 
 ## Technologies
 
@@ -128,15 +165,21 @@ API-et-Web-Services/
         │   │   ├── AuthController           POST /api/auth/login
         │   │   ├── UtilisateurController    GET  /api/utilisateurs
         │   │   └── MessageController        GET  /api/messages/{id}
+        │   ├── websocket/                   temps réel
+        │   │   ├── WebSocketConfig          point d'entrée /ws/messages
+        │   │   ├── JwtHandshakeInterceptor  vérification du jeton à l'ouverture
+        │   │   ├── SessionRegistry          connexions ouvertes par utilisateur
+        │   │   └── MessageWebSocketHandler  réception, enregistrement et relais
         │   ├── security/                    SecurityConfig, JwtService, JwtAuthFilter
         │   ├── service/                     logique métier
         │   ├── repository/                  accès à la base (Spring Data JPA)
-        │   ├── model/                       entités Utilisateur et Message
+        │   ├── model/                       entités Utilisateur et Message, StatutMessage
         │   └── dto/                         objets JSON échangés (records)
         ├── main/resources/
+        │   ├── static/                          client web (index.html, chat.js, chat.css)
         │   ├── application.properties           configuration par défaut (H2)
         │   └── application-postgres.properties  profil PostgreSQL
-        └── test/                            tests JUnit (H2 en mémoire)
+        └── test/                            tests JUnit : API REST (MockMvc) et WebSocket
 ```
 
 ---
