@@ -1,0 +1,744 @@
+{
+  "info": {
+    "_postman_id": "2b1ed977-079c-55d0-853e-919cc4604b53",
+    "name": "ChatAPI - Messagerie instantanée",
+    "description": "# ChatAPI - collection Postman\n\nAPI REST de la messagerie instantanée du projet **API & Web Services** (EFREI).\nElle couvre la création de compte, l'authentification JWT, la liste des utilisateurs et l'historique des conversations.\n\n## Démarrage rapide\n\n1. Lancer le serveur : `cd chatapi` puis `.\\gradlew.bat bootRun` (écoute sur `http://localhost:8080`).\n2. Exécuter le dossier **1. Comptes et authentification** dans l'ordre : il crée Seyni et Fode, les connecte et enregistre leurs jetons.\n3. Les autres dossiers peuvent ensuite être lancés dans n'importe quel ordre.\n\nPour tout jouer d'un coup : clic droit sur la collection, puis **Run collection**. Chaque requête embarque des tests automatiques (onglet *Tests* / *Scripts*), visibles dans le rapport du Runner.\n\n## Authentification\n\n| Endpoint | Accès |\n|---|---|\n| `POST /api/comptes` | public |\n| `POST /api/auth/login` | public |\n| tout le reste | `Authorization: Bearer <JWT>` obligatoire, sinon **401** |\n\nL'authentification est définie **au niveau de la collection** (Bearer `{{seyniToken}}`) : chaque requête hérite du jeton de Seyni.\nLes requêtes publiques la désactivent (*No Auth*) et celles jouées en tant que Fode la surchargent avec `{{fodeToken}}`.\n\n## Variables de collection\n\n| Variable | Rôle | Renseignée par |\n|---|---|---|\n| `baseUrl` | Adresse du serveur. Remplacer par `http://<IPv4 du PC>:8080` pour viser le PC depuis un autre appareil. | à la main |\n| `seyniUsername`, `fodeUsername` | Noms des deux comptes de démonstration | à la main |\n| `motDePasse` | Mot de passe commun aux deux comptes (6 à 72 caractères) | à la main |\n| `seyniToken`, `seyniId` | JWT et identifiant de Seyni | *Connexion de Seyni* |\n| `fodeToken`, `fodeId` | JWT et identifiant de Fode | *Connexion de Fode* |\n\n## Bon à savoir\n\n- Sans variable `JWT_SECRET`, le serveur génère une clé aléatoire à chaque démarrage : après un redémarrage, rejouer les deux connexions pour obtenir des jetons valides.\n- Les jetons expirent au bout de **2 heures**.\n- La collection est rejouable : si Seyni et Fode existent déjà, la création de compte répond 409 et le test l'accepte.\n- Le temps réel (envoi de messages, accusés, présence) passe par le **WebSocket** `ws://localhost:8080/ws/messages?token=<JWT>`, qui n'est pas exportable dans une collection Postman. Il sera testé à part (requête *WebSocket* de Postman ou clients web).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{seyniToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Comptes et authentification",
+      "description": "# 1. Comptes et authentification\n\nDossier **à exécuter en premier** : il prépare les deux utilisateurs de démonstration et stocke leurs jetons dans les variables de collection.\n\nDéroulé :\n1. **Créer le compte de Seyni** puis **de Fode** : `POST /api/comptes`\n2. **Connexion de Seyni** puis **de Fode** : `POST /api/auth/login`, qui renvoie un JWT\n\nCes deux endpoints sont les seuls accessibles sans jeton : c'est pourquoi le dossier est en *No Auth*.",
+      "item": [
+        {
+          "name": "Créer le compte de Seyni",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Compte créé, ou déjà existant si la collection est rejouée\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "    pm.test(\"Réponse sans mot de passe\", () => {",
+                  "        const corps = pm.response.json();",
+                  "        pm.expect(corps).to.have.all.keys(\"id\", \"username\");",
+                  "        pm.expect(corps.username).to.eql(pm.collectionVariables.get(\"seyniUsername\"));",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/comptes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "comptes"
+              ]
+            },
+            "description": "## Créer un compte\n\n`POST /api/comptes` - **public**\n\nInscrit un nouvel utilisateur. Le mot de passe est **haché avec BCrypt** avant l'écriture en base et n'est jamais renvoyé : la réponse ne contient que l'identifiant et le nom.\n\n### Corps\n| Champ | Contrainte |\n|---|---|\n| `username` | obligatoire, 3 à 50 caractères, unique |\n| `password` | obligatoire, 6 à 72 caractères (72 = limite de BCrypt) |\n\n### Réponses\n| Code | Cas |\n|---|---|\n| `201 Created` | compte créé, corps `{ \"id\": 1, \"username\": \"seyni\" }` |\n| `400 Bad Request` | contrainte de validation non respectée |\n| `409 Conflict` | nom d'utilisateur déjà pris |\n\n> Le test accepte aussi 409 pour que la collection reste rejouable sur une base qui contient déjà le compte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{seyniUsername}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Créer le compte de Fode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Compte créé, ou déjà existant si la collection est rejouée\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "    pm.test(\"Réponse sans mot de passe\", () => {",
+                  "        const corps = pm.response.json();",
+                  "        pm.expect(corps).to.have.all.keys(\"id\", \"username\");",
+                  "        pm.expect(corps.username).to.eql(pm.collectionVariables.get(\"fodeUsername\"));",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/comptes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "comptes"
+              ]
+            },
+            "description": "## Créer un compte\n\n`POST /api/comptes` - **public**\n\nInscrit un nouvel utilisateur. Le mot de passe est **haché avec BCrypt** avant l'écriture en base et n'est jamais renvoyé : la réponse ne contient que l'identifiant et le nom.\n\n### Corps\n| Champ | Contrainte |\n|---|---|\n| `username` | obligatoire, 3 à 50 caractères, unique |\n| `password` | obligatoire, 6 à 72 caractères (72 = limite de BCrypt) |\n\n### Réponses\n| Code | Cas |\n|---|---|\n| `201 Created` | compte créé, corps `{ \"id\": 1, \"username\": \"seyni\" }` |\n| `400 Bad Request` | contrainte de validation non respectée |\n| `409 Conflict` | nom d'utilisateur déjà pris |\n\n> Le test accepte aussi 409 pour que la collection reste rejouable sur une base qui contient déjà le compte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{fodeUsername}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Connexion de Seyni",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test(\"Jeton Bearer et identité renvoyés\", () => {",
+                  "    pm.expect(corps.type).to.eql(\"Bearer\");",
+                  "    pm.expect(corps.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(corps.username).to.eql(pm.collectionVariables.get(\"seyniUsername\"));",
+                  "});",
+                  "// Les requêtes protégées lisent ces variables via l'authentification Bearer.",
+                  "pm.collectionVariables.set(\"seyniToken\", corps.token);",
+                  "pm.collectionVariables.set(\"seyniId\", corps.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "## Se connecter\n\n`POST /api/auth/login` - **public**\n\nVérifie les identifiants (Spring Security compare le mot de passe au hash BCrypt) puis renvoie un **JWT signé** valable 2 heures.\n\n### Réponse `200 OK`\n```json\n{ \"token\": \"eyJhbGciOiJIUzI1NiJ9...\", \"type\": \"Bearer\", \"id\": 1, \"username\": \"seyni\" }\n```\n\nLe script de test enregistre `token` et `id` dans les variables de collection : toutes les requêtes protégées les réutilisent automatiquement.\n\n### Erreurs\n`401 Unauthorized` si le nom ou le mot de passe est faux. La réponse est **identique** que le compte existe ou non, pour ne pas révéler quels noms sont inscrits.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{seyniUsername}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Connexion de Fode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test(\"Jeton Bearer et identité renvoyés\", () => {",
+                  "    pm.expect(corps.type).to.eql(\"Bearer\");",
+                  "    pm.expect(corps.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(corps.username).to.eql(pm.collectionVariables.get(\"fodeUsername\"));",
+                  "});",
+                  "// Les requêtes protégées lisent ces variables via l'authentification Bearer.",
+                  "pm.collectionVariables.set(\"fodeToken\", corps.token);",
+                  "pm.collectionVariables.set(\"fodeId\", corps.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "## Se connecter\n\n`POST /api/auth/login` - **public**\n\nVérifie les identifiants (Spring Security compare le mot de passe au hash BCrypt) puis renvoie un **JWT signé** valable 2 heures.\n\n### Réponse `200 OK`\n```json\n{ \"token\": \"eyJhbGciOiJIUzI1NiJ9...\", \"type\": \"Bearer\", \"id\": 1, \"username\": \"seyni\" }\n```\n\nLe script de test enregistre `token` et `id` dans les variables de collection : toutes les requêtes protégées les réutilisent automatiquement.\n\n### Erreurs\n`401 Unauthorized` si le nom ou le mot de passe est faux. La réponse est **identique** que le compte existe ou non, pour ne pas révéler quels noms sont inscrits.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{fodeUsername}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "2. Utilisateurs",
+      "description": "# 2. Utilisateurs\n\nConsultation de l'annuaire. Requête protégée : elle hérite du jeton de Seyni défini sur la collection.",
+      "item": [
+        {
+          "name": "Lister les utilisateurs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "const utilisateurs = pm.response.json();",
+                  "pm.test(\"Vue publique uniquement : id et username\", () => {",
+                  "    utilisateurs.forEach(u => pm.expect(u).to.have.all.keys(\"id\", \"username\"));",
+                  "});",
+                  "pm.test(\"Seyni et Fode sont listés\", () => {",
+                  "    const noms = utilisateurs.map(u => u.username);",
+                  "    pm.expect(noms).to.include(pm.collectionVariables.get(\"seyniUsername\"));",
+                  "    pm.expect(noms).to.include(pm.collectionVariables.get(\"fodeUsername\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "utilisateurs"
+              ]
+            },
+            "description": "## Lister les utilisateurs\n\n`GET /api/utilisateurs` - **JWT requis**\n\nRenvoie tous les comptes inscrits, sous leur **vue publique** `{ id, username }`. Le hash du mot de passe ne fait jamais partie de la réponse (DTO `UtilisateurResponse`, aucune entité exposée).\n\nSert au client pour afficher la liste des contacts avec qui démarrer une conversation.\n\n### Réponses\n| Code | Cas |\n|---|---|\n| `200 OK` | tableau d'utilisateurs |\n| `401 Unauthorized` | jeton absent, invalide ou expiré |"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Messages",
+      "description": "# 3. Messages\n\nHistorique des conversations, persisté en base par le serveur.\n\nLes messages sont **envoyés en temps réel par WebSocket**, pas par REST : tant qu'aucun message n'a été échangé entre Seyni et Fode, l'historique est un tableau vide `[]`, ce qui est le comportement attendu.\n\nLes deux requêtes montrent que la conversation est **symétrique** : Seyni et Fode voient exactement les mêmes messages, chacun avec son propre jeton.",
+      "item": [
+        {
+          "name": "Historique de Seyni avec Fode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "const messages = pm.response.json();",
+                  "pm.test(\"Tableau de messages\", () => pm.expect(messages).to.be.an(\"array\"));",
+                  "const couple = [pm.collectionVariables.get(\"seyniId\"), pm.collectionVariables.get(\"fodeId\")].map(Number);",
+                  "pm.test(\"Chaque message est entre Seyni et Fode, au format imposé\", () => {",
+                  "    messages.forEach(m => {",
+                  "        pm.expect(m).to.have.all.keys(\"id\", \"expediteurId\", \"destinataireId\", \"contenu\", \"dateEnvoi\");",
+                  "        pm.expect(couple).to.include(m.expediteurId);",
+                  "        pm.expect(couple).to.include(m.destinataireId);",
+                  "    });",
+                  "});",
+                  "pm.test(\"Trié du plus ancien au plus récent\", () => {",
+                  "    const dates = messages.map(m => m.dateEnvoi);",
+                  "    pm.expect(dates).to.eql([...dates].sort());",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{fodeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "{{fodeId}}"
+              ]
+            },
+            "description": "## Historique de Seyni avec Fode\n\n`GET /api/messages/{utilisateurId}` - **JWT requis**\n\nRenvoie tous les messages échangés entre l'utilisateur connecté et `utilisateurId`, **dans les deux sens**, triés du plus ancien au plus récent.\n\n**Sécurité** : l'utilisateur courant est lu dans le **jeton**, jamais dans l'URL. On ne peut donc récupérer que ses propres conversations ; impossible de lire celle de deux autres personnes en changeant l'identifiant.\n\n### Format d'un message\n```json\n{ \"id\": 1, \"expediteurId\": 1, \"destinataireId\": 2, \"contenu\": \"Bonjour !\", \"dateEnvoi\": \"2026-09-21T10:15:30\" }\n```\n`dateEnvoi` est fixée par le serveur au moment de l'enregistrement.\n\n### Réponses\n| Code | Cas |\n|---|---|\n| `200 OK` | tableau de messages, éventuellement vide |\n| `401 Unauthorized` | jeton absent, invalide ou expiré |"
+          },
+          "response": []
+        },
+        {
+          "name": "Historique de Fode avec Seyni",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 200\", () => pm.response.to.have.status(200));",
+                  "const messages = pm.response.json();",
+                  "pm.test(\"Tableau de messages\", () => pm.expect(messages).to.be.an(\"array\"));",
+                  "const couple = [pm.collectionVariables.get(\"seyniId\"), pm.collectionVariables.get(\"fodeId\")].map(Number);",
+                  "pm.test(\"Chaque message est entre Seyni et Fode, au format imposé\", () => {",
+                  "    messages.forEach(m => {",
+                  "        pm.expect(m).to.have.all.keys(\"id\", \"expediteurId\", \"destinataireId\", \"contenu\", \"dateEnvoi\");",
+                  "        pm.expect(couple).to.include(m.expediteurId);",
+                  "        pm.expect(couple).to.include(m.destinataireId);",
+                  "    });",
+                  "});",
+                  "pm.test(\"Trié du plus ancien au plus récent\", () => {",
+                  "    const dates = messages.map(m => m.dateEnvoi);",
+                  "    pm.expect(dates).to.eql([...dates].sort());",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{seyniId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "messages",
+                "{{seyniId}}"
+              ]
+            },
+            "description": "## Historique de Fode avec Seyni\n\nMême endpoint, joué **en tant que Fode** : l'authentification de la requête est surchargée avec `{{fodeToken}}`.\n\nLe test vérifie que chaque message concerne bien le couple Seyni/Fode. Comparé à la requête précédente, on obtient la même conversation vue de l'autre côté.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{fodeToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Sécurité et cas d'erreur",
+      "description": "# 4. Sécurité et cas d'erreur\n\nVérifie que le serveur refuse proprement les requêtes incorrectes. Chaque requête documente le code attendu et pourquoi.\n\n| Requête | Code attendu |\n|---|---|\n| Sans jeton | `401` |\n| Jeton falsifié | `401` |\n| Mauvais mot de passe | `401` |\n| Utilisateur inconnu | `401` |\n| Nom déjà pris | `409` |\n| Mot de passe trop court | `400` |\n| Nom d'utilisateur vide | `400` |\n\nÀ exécuter après le dossier 1 (Seyni doit exister).",
+      "item": [
+        {
+          "name": "Sans jeton : 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "utilisateurs"
+              ]
+            },
+            "description": "## Requête protégée sans jeton : 401\n\n`GET /api/utilisateurs` sans en-tête `Authorization`.\n\nPar défaut Spring Security répond 403 ; `SecurityConfig` le remplace par **401**, comme l'exige le sujet pour toute requête sans jeton valide.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Jeton falsifié : 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "utilisateurs"
+              ]
+            },
+            "description": "## Jeton falsifié : 401\n\nLe jeton envoyé a une forme de JWT mais une **signature invalide**. `JwtAuthFilter` ne peut pas le vérifier : la requête reste anonyme et la chaîne de sécurité répond **401**.\n\nLe même résultat s'obtient avec un jeton expiré ou signé par une ancienne clé (serveur redémarré sans `JWT_SECRET`).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwaXJhdGUifQ.c2lnbmF0dXJlLWludmFsaWRl",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mauvais mot de passe : 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "## Mauvais mot de passe : 401\n\nLe compte existe mais le mot de passe ne correspond pas au hash BCrypt enregistré.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{seyniUsername}}\",\n  \"password\": \"mauvais-mot-de-passe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Utilisateur inconnu : 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "## Utilisateur inconnu : 401\n\nLe serveur répond **exactement comme pour un mauvais mot de passe** (même code, même message) : un attaquant ne peut pas savoir si un nom d'utilisateur est inscrit.\n\nLe login ne valide pas le format des champs (`@Valid` absent volontairement) : un identifiant mal formé est simplement un échec d'authentification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"personne-{{$timestamp}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Nom déjà pris : 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/comptes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "comptes"
+              ]
+            },
+            "description": "## Nom déjà pris : 409\n\nTente de recréer le compte de Seyni. Le nom d'utilisateur étant unique, le serveur répond **409 Conflict** sans rien modifier.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{seyniUsername}}\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mot de passe trop court : 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/comptes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "comptes"
+              ]
+            },
+            "description": "## Mot de passe trop court : 400\n\n`password` fait moins de 6 caractères : la validation `@Valid` du DTO `IdentifiantsRequest` rejette la requête avec **400 Bad Request** avant tout accès à la base.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"charlie-{{$timestamp}}\",\n  \"password\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Nom d'utilisateur vide : 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Statut 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/comptes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "comptes"
+              ]
+            },
+            "description": "## Nom d'utilisateur vide : 400\n\n`username` est vide : la contrainte `@NotBlank` déclenche un **400 Bad Request**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"\",\n  \"password\": \"{{motDePasse}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "seyniUsername",
+      "value": "seyni"
+    },
+    {
+      "key": "fodeUsername",
+      "value": "fode"
+    },
+    {
+      "key": "motDePasse",
+      "value": "secret123"
+    },
+    {
+      "key": "seyniToken",
+      "value": ""
+    },
+    {
+      "key": "seyniId",
+      "value": ""
+    },
+    {
+      "key": "fodeToken",
+      "value": ""
+    },
+    {
+      "key": "fodeId",
+      "value": ""
+    }
+  ]
+}
