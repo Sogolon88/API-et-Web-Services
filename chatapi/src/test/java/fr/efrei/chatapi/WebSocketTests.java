@@ -3,7 +3,10 @@ package fr.efrei.chatapi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,11 +25,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import com.sun.net.httpserver.HttpServer;
 
 import fr.efrei.chatapi.model.Message;
 import fr.efrei.chatapi.model.StatutMessage;
@@ -72,10 +80,32 @@ class WebSocketTests {
     @Autowired
     private UtilisateurService utilisateurService;
 
+    // Service tiers simulé : un mini serveur HTTP du JDK qui conserve le corps de chaque webhook reçu.
+    private static final BlockingQueue<String> WEBHOOKS_RECUS = new LinkedBlockingQueue<>();
+    private static HttpServer serviceTiers;
+
     private final List<WebSocketSession> sessionsOuvertes = new ArrayList<>();
 
     private Utilisateur seyni;
     private Utilisateur fode;
+
+    @DynamicPropertySource
+    static void configurerWebhook(DynamicPropertyRegistry proprietes) throws IOException {
+        serviceTiers = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        serviceTiers.createContext("/notifications", echange -> {
+            WEBHOOKS_RECUS.add(new String(echange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            echange.sendResponseHeaders(204, -1);
+            echange.close();
+        });
+        serviceTiers.start();
+        proprietes.add("chat.webhook.url",
+                () -> "http://localhost:" + serviceTiers.getAddress().getPort() + "/notifications");
+    }
+
+    @AfterAll
+    static void arreterServiceTiers() {
+        serviceTiers.stop(0);
+    }
 
     @BeforeEach
     void preparer() {
@@ -220,6 +250,30 @@ class WebSocketTests {
         assertThat(saisie.path("expediteurId").asLong()).isEqualTo(seyni.getId());
         assertThat(saisie.path("enCours").asBoolean()).isTrue();
         assertThat(messageRepository.count()).isZero();
+    }
+
+    @Test
+    void webhookAppeleQuandLeDestinataireEstHorsLigne() throws Exception {
+        BlockingQueue<String> recusParSeyni = new LinkedBlockingQueue<>();
+        WebSocketSession sessionSeyni = connecter(jwtService.genererToken(seyni), recusParSeyni);
+
+        sessionSeyni.sendMessage(new TextMessage("""
+                {"type":"message","destinataireId":%d,"contenu":"Message privé"}
+                """.formatted(fode.getId())));
+        long id = prochaine(recusParSeyni, "message").path("id").asLong();
+
+        // D'autres tests envoient aussi à des destinataires hors ligne : on cherche le webhook de ce message.
+        JsonNode notification = null;
+        long limite = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(DELAI_SECONDES);
+        while (notification == null || notification.path("messageId").asLong() != id) {
+            String corps = WEBHOOKS_RECUS.poll(limite - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            assertThat(corps).as("aucun webhook reçu pour le message %d", id).isNotNull();
+            notification = jsonMapper.readTree(corps);
+        }
+        assertThat(notification.path("evenement").asString()).isEqualTo("nouveau_message");
+        assertThat(notification.path("destinataireId").asLong()).isEqualTo(fode.getId());
+        assertThat(notification.path("expediteur").asString()).isEqualTo("seyni");
+        assertThat(notification.has("contenu")).isFalse();
     }
 
     @Test

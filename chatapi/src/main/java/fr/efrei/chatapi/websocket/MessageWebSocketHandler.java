@@ -18,6 +18,7 @@ import fr.efrei.chatapi.dto.TrameEntrante;
 import fr.efrei.chatapi.model.StatutMessage;
 import fr.efrei.chatapi.security.UtilisateurConnecte;
 import fr.efrei.chatapi.service.MessageService;
+import fr.efrei.chatapi.service.NotificationService;
 import fr.efrei.chatapi.service.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
@@ -35,6 +36,7 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     private final SessionRegistry sessionRegistry;
     private final MessageService messageService;
     private final RateLimiter rateLimiter;
+    private final NotificationService notificationService;
     private final JsonMapper jsonMapper;
 
     @Override
@@ -98,7 +100,10 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
         String json = jsonMapper.writeValueAsString(MessageSortant.depuis(message));
         // L'écho apporte l'id et la date du serveur, et synchronise les autres appareils de l'expéditeur.
         sessionRegistry.envoyer(moi.id(), json);
-        if (sessionRegistry.envoyer(message.destinataireId(), json) && messageService.marquerLivre(message.id())) {
+        if (!sessionRegistry.envoyer(message.destinataireId(), json)) {
+            // Destinataire hors ligne : le message attend en base et un service tiers est prévenu.
+            notificationService.notifierHorsLigne(message, moi.username());
+        } else if (messageService.marquerLivre(message.id())) {
             accuser(List.of(message), StatutMessage.LIVRE);
         }
     }
