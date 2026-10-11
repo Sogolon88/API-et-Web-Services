@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatAPI - habillage de la vidéo</title>
+<style>
+    /* Même identité visuelle que l'application : papier chaud, encre, accent vert, titres en serif. */
+    :root {
+        --papier: #f3efe6;
+        --papier-clair: #fbf9f4;
+        --encre: #1f1d1a;
+        --encre-douce: #635d54;
+        --trait: #ddd6c8;
+        --accent: #165e4f;
+        --accent-voile: #e1ebe6;
+        --en-ligne: #2f9e6e;
+        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+        --sans: "Segoe UI", "Helvetica Neue", Roboto, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+    }
+
+    body {
+        font-family: var(--sans);
+        color: var(--encre);
+        background:
+            radial-gradient(circle at 12% 0%, rgb(255 255 255 / 0.75), transparent 45%),
+            radial-gradient(circle at 100% 100%, rgb(22 94 79 / 0.09), transparent 42%),
+            var(--papier);
+    }
+
+    body.inactif { cursor: none; }
+
+    .diapo {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 6vh 8vw;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.5s ease, visibility 0.5s;
+    }
+
+    .diapo.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Apparition décalée des éléments marqués .r, rejouée à chaque affichage de la diapositive. */
+    .diapo .r {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    .diapo.active .r {
+        animation: entree 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+        animation-delay: calc(var(--i, 0) * 0.16s + 0.15s);
+    }
+
+    @keyframes entree {
+        to { opacity: 1; transform: none; }
+    }
+
+    .surtitre {
+        margin: 0;
+        font-size: clamp(0.8rem, 1.3vw, 1.1rem);
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--encre-douce);
+    }
+
+    h1, h2, .numero, .auteurs {
+        font-family: var(--serif);
+        font-weight: 600;
+    }
+
+    /* Titre */
+    .titre { text-align: left; width: min(1100px, 100%); }
+
+    .titre h1 {
+        margin: 1.5vh 0 2vh;
+        font-size: clamp(4rem, 13vw, 11rem);
+        line-height: 0.9;
+        letter-spacing: -0.03em;
+    }
+
+    .titre .accroche {
+        margin: 0;
+        max-width: 38ch;
+        font-size: clamp(1.1rem, 2.2vw, 1.9rem);
+        color: var(--encre-douce);
+    }
+
+    .filet {
+        height: 3px;
+        margin: 5vh 0 2.5vh;
+        background: var(--accent);
+        transform-origin: left;
+    }
+
+    .diapo.active .filet {
+        animation: trace 1s 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    @keyframes trace {
+        from { transform: scaleX(0); }
+    }
+
+    .auteurs {
+        margin: 0;
+        font-size: clamp(1.2rem, 2.4vw, 2rem);
+        font-style: italic;
+    }
+
+    /* Schéma d'architecture */
+    .schema { width: min(1200px, 100%); }
+
+    .schema h2, .cycle h2, .bonus h2 {
+        margin: 0.6vh 0 4vh;
+        font-size: clamp(1.8rem, 3.6vw, 3.2rem);
+    }
+
+    .schema svg { width: 100%; height: auto; overflow: visible; }
+
+    .schema .boite { fill: var(--papier-clair); stroke: var(--encre); stroke-width: 2; }
+    .schema .serveur { fill: var(--encre); }
+    .schema .lien { stroke: var(--trait); stroke-width: 3; fill: none; stroke-dasharray: 8 8; }
+    .schema text { font-family: var(--sans); fill: var(--encre); }
+    .schema .grand { font-family: var(--serif); font-size: 30px; font-weight: 600; }
+    .schema .petit { font-size: 18px; fill: var(--encre-douce); }
+    .schema .clair { fill: var(--papier); }
+
+    .diapo.active .lien { animation: defile 1.2s linear infinite; }
+
+    @keyframes defile {
+        to { stroke-dashoffset: -32; }
+    }
+
+    /* Le message parcourt A, le serveur, la base, puis B. */
+    .jeton { fill: var(--accent); }
+
+    .legende {
+        margin: 3vh 0 0;
+        font-size: clamp(1rem, 1.9vw, 1.6rem);
+        color: var(--encre-douce);
+        text-align: center;
+    }
+
+    /* Étapes du scénario */
+    .etape {
+        width: min(1100px, 100%);
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 5vw;
+    }
+
+    .numero {
+        font-size: clamp(7rem, 20vw, 17rem);
+        line-height: 0.8;
+        color: var(--accent);
+    }
+
+    .etape h2 {
+        margin: 1vh 0 2vh;
+        font-size: clamp(2.2rem, 5vw, 4.4rem);
+        line-height: 1.05;
+    }
+
+    .etape p.detail {
+        margin: 0;
+        font-size: clamp(1.1rem, 2.1vw, 1.8rem);
+        color: var(--encre-douce);
+    }
+
+    code {
+        font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+        font-size: 0.9em;
+        padding: 0.1em 0.4em;
+        border-radius: 6px;
+        background: var(--accent-voile);
+        color: var(--accent);
+    }
+
+    /* Cycle d'un message */
+    .cycle { width: min(1150px, 100%); text-align: center; }
+
+    .statuts {
+        display: grid;
+        grid-template-columns: 1fr 70px 1fr 70px 1fr;
+        align-items: center;
+    }
+
+    .statut {
+        padding: 3.5vh 1vw;
+        border: 2px solid var(--encre);
+        border-radius: 22px;
+        background: var(--papier-clair);
+    }
+
+    .statut strong {
+        display: block;
+        font-family: var(--serif);
+        font-size: clamp(1.6rem, 3.3vw, 2.8rem);
+    }
+
+    .statut span {
+        display: block;
+        margin-top: 1vh;
+        font-size: clamp(0.9rem, 1.5vw, 1.25rem);
+        color: var(--encre-douce);
+    }
+
+    .statut.final {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+    }
+
+    .statut.final span { color: rgb(255 255 255 / 0.8); }
+
+    /* Liaison entre deux statuts : un trait qui se dessine. */
+    .liaison {
+        height: 3px;
+        background: var(--accent);
+        transform: scaleX(0);
+        transform-origin: left;
+    }
+
+    .diapo.active .liaison {
+        animation: trace-liaison 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+        animation-delay: calc(var(--i) * 0.16s + 0.3s);
+    }
+
+    @keyframes trace-liaison {
+        to { transform: scaleX(1); }
+    }
+
+    /* Bonus */
+    .bonus { width: min(1150px, 100%); }
+
+    .grille {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2.2vh 1.6vw;
+    }
+
+    .carte {
+        padding: 2.6vh 1.6vw;
+        border: 1px solid var(--trait);
+        border-left: 4px solid var(--accent);
+        border-radius: 14px;
+        background: var(--papier-clair);
+        box-shadow: 0 18px 40px -28px rgb(31 29 26 / 0.5);
+    }
+
+    .carte h3 {
+        margin: 0 0 0.8vh;
+        font-family: var(--serif);
+        font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+    }
+
+    .carte p {
+        margin: 0;
+        font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+        color: var(--encre-douce);
+    }
+
+    /* Fin */
+    .fin { text-align: center; }
+
+    .fin h2 {
+        margin: 1.5vh 0 3vh;
+        font-size: clamp(3.5rem, 10vw, 8.5rem);
+        line-height: 0.95;
+    }
+
+    .fin .filet { width: 160px; margin: 0 auto 3vh; }
+
+    .fin .lien-depot {
+        margin: 3vh 0 0;
+        font-size: clamp(1rem, 1.7vw, 1.4rem);
+        color: var(--encre-douce);
+    }
+
+    /* Barre de progression, masquable avec la touche H pour l'enregistrement */
+    .progression {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        height: 4px;
+        background: var(--accent);
+        transition: width 0.5s ease;
+    }
+
+    body.sans-progression .progression { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        .diapo .r, .liaison { opacity: 1; transform: none; }
+    }
+</style>
+</head>
+<body>
+
+<!-- 1. Titre -->
+<section class="diapo">
+    <div class="titre">
+        <p class="surtitre r">API &amp; Web Services - EFREI</p>
+        <h1 class="r" style="--i: 1">ChatAPI</h1>
+        <p class="accroche r" style="--i: 2">Messagerie instantanée entre deux appareils, reliés par un serveur central.</p>
+        <div class="filet"></div>
+        <p class="auteurs r" style="--i: 5">Fode Laye Keita et Balde Seyni Junior</p>
+    </div>
+</section>
+
+<!-- 2. Architecture -->
+<section class="diapo">
+    <div class="schema">
+        <p class="surtitre r">Architecture</p>
+        <h2 class="r" style="--i: 1">Tout passe par le serveur</h2>
+        <svg class="r" style="--i: 2" viewBox="0 0 1200 470" role="img" aria-label="Le téléphone et l'ordinateur échangent uniquement avec le serveur, qui enregistre chaque message en base.">
+            <path class="lien" d="M 210 200 L 600 330"/>
+            <path class="lien" d="M 990 200 L 600 330"/>
+            <path class="lien" d="M 600 330 L 600 420"/>
+
+            <rect class="boite" x="60" y="70" width="300" height="130" rx="18"/>
+            <text class="grand" x="210" y="128" text-anchor="middle">Téléphone</text>
+            <text class="petit" x="210" y="162" text-anchor="middle">mobile.html - Fode</text>
+
+            <rect class="boite" x="840" y="70" width="300" height="130" rx="18"/>
+            <text class="grand" x="990" y="128" text-anchor="middle">Ordinateur</text>
+            <text class="petit" x="990" y="162" text-anchor="middle">desktop.html - Seyni</text>
+
+            <rect class="serveur" x="430" y="270" width="340" height="110" rx="18"/>
+            <text class="grand clair" x="600" y="320" text-anchor="middle">Serveur ChatAPI</text>
+            <text class="petit clair" x="600" y="352" text-anchor="middle">Spring Boot - REST, WebSocket, JWT</text>
+
+            <rect x="500" y="410" width="200" height="56" rx="14" fill="#fbf9f4" stroke="#1f1d1a" stroke-width="2">
+                <!-- S'illumine pendant la pause du message au serveur : il est enregistré -->
+                <animate attributeName="fill" dur="4.2s" repeatCount="indefinite"
+                         values="#fbf9f4;#fbf9f4;#c9ddd5;#fbf9f4;#fbf9f4" keyTimes="0;0.42;0.5;0.58;1"/>
+            </rect>
+            <text class="petit" x="600" y="445" text-anchor="middle">Base de données</text>
+
+            <text class="petit" x="330" y="268" text-anchor="middle">REST + WebSocket</text>
+            <text class="petit" x="870" y="268" text-anchor="middle">REST + WebSocket</text>
+
+            <circle class="jeton" r="13">
+                <!-- Trajet A, serveur (pause : enregistrement en base), puis B -->
+                <animateMotion dur="4.2s" repeatCount="indefinite" calcMode="linear"
+                               path="M 210 200 L 600 330 L 990 200"
+                               keyPoints="0;0.5;0.5;1" keyTimes="0;0.42;0.58;1"/>
+                <animate attributeName="opacity" dur="4.2s" repeatCount="indefinite"
+                         values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1"/>
+            </circle>
+        </svg>
+        <p class="legende r" style="--i: 3">Chaque message est enregistré, puis poussé au destinataire.</p>
+    </div>
+</section>
+
+<!-- 3. Étape 1 -->
+<section class="diapo">
+    <div class="etape">
+        <div class="numero r">01</div>
+        <div>
+            <p class="surtitre r" style="--i: 1">Scénario de démonstration</p>
+            <h2 class="r" style="--i: 2">Connexion des deux appareils</h2>
+            <p class="detail r" style="--i: 3">Un jeton JWT obtenu en REST, puis un canal WebSocket ouvert avec ce jeton.</p>
+        </div>
+    </div>
+</section>
+
+<!-- 4. Étape 2 -->
+<section class="diapo">
+    <div class="etape">
+        <div class="numero r">02</div>
+        <div>
+            <p class="surtitre r" style="--i: 1">Scénario de démonstration</p>
+            <h2 class="r" style="--i: 2">De l'ordinateur au téléphone</h2>
+            <p class="detail r" style="--i: 3">Le message apparaît instantanément, sans rafraîchir la page.</p>
+        </div>
+    </div>
+</section>
+
+<!-- 5. Étape 3 -->
+<section class="diapo">
+    <div class="etape">
+        <div class="numero r">03</div>
+        <div>
+            <p class="surtitre r" style="--i: 1">Scénario de démonstration</p>
+            <h2 class="r" style="--i: 2">Et la réponse</h2>
+            <p class="detail r" style="--i: 3">Indicateur de saisie, puis accusés : envoyé, livré, lu.</p>
+        </div>
+    </div>
+</section>
+
+<!-- 6. Cycle d'un message -->
+<section class="diapo">
+    <div class="cycle">
+        <p class="surtitre r">Cycle d'un message</p>
+        <h2 class="r" style="--i: 1">Enregistré avant d'être livré</h2>
+        <div class="statuts">
+            <div class="statut r" style="--i: 2"><strong>Envoyé</strong><span>enregistré en base</span></div>
+            <div class="liaison" style="--i: 3"></div>
+            <div class="statut r" style="--i: 4"><strong>Livré</strong><span>reçu par l'appareil</span></div>
+            <div class="liaison" style="--i: 5"></div>
+            <div class="statut final r" style="--i: 6"><strong>Lu</strong><span>conversation ouverte</span></div>
+        </div>
+        <p class="legende r" style="--i: 7">Destinataire hors ligne : le message attend en base, aucun n'est perdu.</p>
+    </div>
+</section>
+
+<!-- 7. Étape 4 -->
+<section class="diapo">
+    <div class="etape">
+        <div class="numero r">04</div>
+        <div>
+            <p class="surtitre r" style="--i: 1">Scénario de démonstration</p>
+            <h2 class="r" style="--i: 2">Déconnexion, puis retour</h2>
+            <p class="detail r" style="--i: 3">L'historique complet revient par REST : <code>GET /api/messages/{id}</code></p>
+        </div>
+    </div>
+</section>
+
+<!-- 8. Bonus -->
+<section class="diapo">
+    <div class="bonus">
+        <p class="surtitre r">Fonctionnalités bonus</p>
+        <h2 class="r" style="--i: 1">Les cinq bonus du sujet</h2>
+        <div class="grille">
+            <div class="carte r" style="--i: 2"><h3>Accusés</h3><p>Envoyé, livré, lu, poussés à l'expéditeur.</p></div>
+            <div class="carte r" style="--i: 3"><h3>Saisie</h3><p>"écrit un message", relayé en direct.</p></div>
+            <div class="carte r" style="--i: 4"><h3>Webhook</h3><p>Service tiers prévenu si le destinataire est hors ligne.</p></div>
+            <div class="carte r" style="--i: 5"><h3>Débit limité</h3><p>20 messages sur 10 secondes, fenêtre glissante.</p></div>
+            <div class="carte r" style="--i: 6"><h3>Swagger</h3><p>Documentation OpenAPI, testable avec le jeton.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- 9. Fin -->
+<section class="diapo">
+    <div class="fin">
+        <p class="surtitre r">ChatAPI</p>
+        <h2 class="r" style="--i: 1">Merci</h2>
+        <div class="filet"></div>
+        <p class="auteurs r" style="--i: 4">Fode Laye Keita et Balde Seyni Junior</p>
+        <p class="lien-depot r" style="--i: 5">github.com/Sogolon88/API-et-Web-Services</p>
+    </div>
+</section>
+
+<div class="progression"></div>
+
+<script>
+    // Navigation : flèches, espace ou clic ; F pour le plein écran ; H masque la barre de progression.
+    const diapos = [...document.querySelectorAll(".diapo")];
+    const progression = document.querySelector(".progression");
+    let courante = 0;
+    let minuteurCurseur;
+
+    function afficher(index) {
+        courante = Math.max(0, Math.min(diapos.length - 1, index));
+        diapos.forEach((diapo, i) => diapo.classList.toggle("active", i === courante));
+        progression.style.width = ((courante + 1) / diapos.length * 100) + "%";
+        history.replaceState(null, "", "#" + (courante + 1));
+    }
+
+    document.addEventListener("keydown", evenement => {
+        if (["ArrowRight", "ArrowDown", " ", "PageDown"].includes(evenement.key)) {
+            evenement.preventDefault();
+            afficher(courante + 1);
+        } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(evenement.key)) {
+            afficher(courante - 1);
+        } else if (evenement.key === "f") {
+            document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+        } else if (evenement.key === "h") {
+            document.body.classList.toggle("sans-progression");
+        }
+    });
+
+    document.addEventListener("click", () => afficher(courante + 1));
+
+    // Le curseur disparaît après deux secondes d'immobilité, pour ne pas apparaître à l'enregistrement.
+    document.addEventListener("mousemove", () => {
+        document.body.classList.remove("inactif");
+        clearTimeout(minuteurCurseur);
+        minuteurCurseur = setTimeout(() => document.body.classList.add("inactif"), 2000);
+    });
+
+    afficher((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
