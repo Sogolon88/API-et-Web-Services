@@ -2,51 +2,50 @@ package fr.efrei.chatapi.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-
-import fr.efrei.chatapi.Jwt.JwtFilter;
-import fr.efrei.chatapi.config.JwtUtil;
-import fr.efrei.chatapi.service.UserDatailsService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Configuration 
+@Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor 
 public class SecurityConfig {
 
-    private final UserDatailsService userDetailsService;
-    private final JwtUtil jwtUtil;
-
-    @Bean 
+    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean 
-    public  AuthenticationManager authenticationManager(HttpSecurity http, PasswordEncoder passwordEncoder) throws Exception {
-        AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
-        authenticationManagerBuilder.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder);
-        return authenticationManagerBuilder.build();
+    // Spring construit l'AuthenticationManager à partir du UserDetailsService et du PasswordEncoder déclarés.
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 
-    @Bean 
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return 
-            http
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(new JwtFilter(jwtUtil, userDetailsService), UsernamePasswordAuthenticationFilter.class)
-            .build();
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+        return http
+                // API sans état authentifiée par jeton : pas de cookie de session, donc pas de CSRF.
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/comptes", "/api/auth/login").permitAll()
+                        // /error doit rester public, sinon chaque erreur serait masquée par un 401.
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated())
+                // Par défaut Spring répond 403 ; le sujet exige 401 pour une requête sans jeton valide.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 }

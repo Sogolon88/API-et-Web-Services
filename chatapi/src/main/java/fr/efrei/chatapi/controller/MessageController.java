@@ -1,30 +1,29 @@
 package fr.efrei.chatapi.controller;
 
-import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import fr.efrei.chatapi.dto.MessageDto;
+import fr.efrei.chatapi.security.UtilisateurConnecte;
 import fr.efrei.chatapi.service.MessageService;
-import fr.efrei.chatapi.model.Message;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import fr.efrei.chatapi.model.Utilisateur;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/messages")
+@RequiredArgsConstructor
 public class MessageController {
 
     private final MessageService messageService;
 
-    public MessageController(MessageService messageService) {
-        this.messageService = messageService;
+    // L'utilisateur courant vient du jeton : impossible de lire la conversation de quelqu'un d'autre.
+    @GetMapping("/{utilisateurId}")
+    public List<MessageDto> historique(@PathVariable Long utilisateurId,
+                                       @AuthenticationPrincipal UtilisateurConnecte moi) {
+        return messageService.historique(moi.id(), utilisateurId);
     }
-
-    @GetMapping ("/{userId}")
-    public ResponseEntity<List<Message>> getAllMessages(@PathVariable Long userId, Authentication authentication) {
-        // Implementation for retrieving all messages for a specific user
-        Utilisateur user = (Utilisateur) authentication.getPrincipal(); 
-        List<Message> messages = messageService.getAllMessages( user.getId(), userId);
-        return ResponseEntity.ok(messages);
-    }
-    
 }
