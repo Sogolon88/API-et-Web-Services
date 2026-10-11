@@ -1,8 +1,15 @@
 # ChatAPI
 
+![capture_principale](./imgs/accueil_bureau.png)
+
+
+
+
 Messagerie instantanée entre deux appareils distincts, réalisée pour le projet de synthèse du module **API & Web Services** (cycle ingénieur, EFREI).
 
 Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échangent des messages en temps réel. Les appareils ne communiquent jamais directement : chaque message passe par le serveur ChatAPI, qui l'enregistre puis le retransmet au destinataire.
+
+![demo_bureau](./imgs/bonus_accuses.png)
 
 ## Fonctionnalités
 
