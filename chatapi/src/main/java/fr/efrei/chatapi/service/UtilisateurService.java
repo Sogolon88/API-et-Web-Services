@@ -20,6 +20,10 @@ public class UtilisateurService {
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Inscrit un utilisateur. Le doublon est détecté ici pour répondre 409 avec un message clair ;
+     * la contrainte d'unicité en base reste la garantie finale.
+     */
     public UtilisateurResponse creer(IdentifiantsRequest identifiants) {
         if (utilisateurRepository.existsByUsername(identifiants.username())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Nom d'utilisateur déjà pris");

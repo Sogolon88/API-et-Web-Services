@@ -16,10 +16,16 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+/**
+ * Configuration de Spring Security : routes publiques, routes protégées par JWT
+ * et réponse 401 pour toute requête non authentifiée.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    // BCrypt intègre un sel aléatoire et un coût réglable : deux mots de passe identiques
+    // donnent deux hachages différents, et une attaque par force brute reste lente.
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -31,6 +37,7 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
+    // Chaîne de filtres appliquée à chaque requête HTTP, avant l'appel du contrôleur.
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         return http

@@ -8,13 +8,13 @@ Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échang
 
 | Fonctionnalité | Technologie | État |
 |---|---|---|
-| Création de compte et connexion | REST + JWT | ✅ |
-| Liste des utilisateurs | REST | ✅ (statut en ligne : à venir) |
-| Historique d'une conversation | REST | ✅ |
-| Protection des endpoints (401 sans jeton valide) | Spring Security + JWT | ✅ |
-| Envoi et réception en direct | WebSocket | 🚧 en cours |
-| Clients « mobile » et « bureau » | HTML / CSS / JavaScript | 🚧 en cours |
-| Bonus : accusés de lecture, indicateur de saisie, webhook hors ligne, limitation de débit, Swagger | — | 🚧 prévu |
+| Création de compte et connexion | REST + JWT | Fait |
+| Liste des utilisateurs | REST | Fait (statut en ligne à venir) |
+| Historique d'une conversation | REST | Fait |
+| Protection des endpoints (401 sans jeton valide) | Spring Security + JWT | Fait |
+| Envoi et réception en direct | WebSocket | En cours |
+| Clients mobile et bureau | HTML / CSS / JavaScript | En cours |
+| Bonus : accusés de lecture, indicateur de saisie, webhook hors ligne, limitation de débit, Swagger | REST et WebSocket | Prévu |
 
 ## Lancer le projet
 
@@ -49,7 +49,7 @@ Les tests utilisent une base H2 en mémoire et ne touchent pas aux données.
 | `SPRING_PROFILES_ACTIVE=postgres` | Utiliser PostgreSQL au lieu de H2 | H2 |
 | `DB_URL` | URL PostgreSQL (profil `postgres`) | `jdbc:postgresql://localhost:5432/chatapiDB` |
 | `DB_USER` | Utilisateur PostgreSQL (profil `postgres`) | `postgres` |
-| `DB_PASSWORD` | Mot de passe PostgreSQL (profil `postgres`) | — |
+| `DB_PASSWORD` | Mot de passe PostgreSQL (profil `postgres`) | aucun |
 
 Exemple avec PostgreSQL (la base `chatapiDB` doit exister) :
 
@@ -76,18 +76,18 @@ Tous les échanges sont en JSON. Sauf la création de compte et la connexion, ch
 POST /api/comptes
 Content-Type: application/json
 
-{ "username": "alice", "password": "secret123" }
+{ "username": "seyni", "password": "secret123" }
 ```
 
 ```http
 POST /api/auth/login
 Content-Type: application/json
 
-{ "username": "alice", "password": "secret123" }
+{ "username": "seyni", "password": "secret123" }
 ```
 
 ```json
-{ "token": "eyJhbGciOiJIUzI1NiJ9...", "type": "Bearer", "id": 1, "username": "alice" }
+{ "token": "eyJhbGciOiJIUzI1NiJ9...", "type": "Bearer", "id": 1, "username": "seyni" }
 ```
 
 **Message de l'historique**
@@ -95,6 +95,8 @@ Content-Type: application/json
 ```json
 { "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30" }
 ```
+
+Une collection Postman documentée et testée est fournie dans [`postman/`](postman/README.md).
 
 ## Tester depuis un téléphone
 
@@ -115,6 +117,7 @@ Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), G
 API-et-Web-Services/
 ├── README.md
 ├── Projet_Messagerie_Instantanee.pdf        sujet
+├── postman/                                 collection Postman à importer
 └── chatapi/                                 serveur Spring Boot
     ├── build.gradle, settings.gradle
     ├── gradlew, gradlew.bat                 Gradle fourni, rien à installer
@@ -138,4 +141,4 @@ API-et-Web-Services/
 
 ---
 
-Projet réalisé en 2ᵉ année du cycle ingénieur Big Data & Machine Learning, EFREI.
+Projet réalisé en deuxième année du cycle ingénieur Big Data & Machine Learning, EFREI.

@@ -17,6 +17,10 @@ import fr.efrei.chatapi.security.JwtService;
 import fr.efrei.chatapi.service.UtilisateurService;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Connexion : échange des identifiants contre un JWT que le client joindra ensuite
+ * à chaque requête protégée et à l'ouverture du WebSocket.
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor

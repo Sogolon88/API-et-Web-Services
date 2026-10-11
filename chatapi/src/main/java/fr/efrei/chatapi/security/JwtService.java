@@ -16,6 +16,11 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Émission et vérification des JWT. Un jeton se compose de trois parties encodées en Base64URL
+ * (en-tête, charge utile, signature). La signature HMAC-SHA256 garantit qu'il n'a pas été modifié :
+ * seul le serveur, qui détient la clé, peut produire une signature valide.
+ */
 @Slf4j
 @Service
 public class JwtService {
@@ -40,6 +45,10 @@ public class JwtService {
         this.dureeValiditeMs = dureeValiditeMs;
     }
 
+    /**
+     * Construit un jeton signé contenant le nom (sub), l'identifiant (uid), la date d'émission (iat)
+     * et la date d'expiration (exp). La charge utile est lisible par tous : elle ne contient aucun secret.
+     */
     public String genererToken(Utilisateur utilisateur) {
         long maintenant = System.currentTimeMillis();
         // L'id est embarqué dans le jeton pour éviter une lecture en base à chaque requête.

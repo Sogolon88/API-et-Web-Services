@@ -13,6 +13,10 @@ import fr.efrei.chatapi.service.UtilisateurService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Création de compte. POST sur une collection crée une nouvelle ressource : le serveur
+ * répond 201 Created, 400 si les données sont invalides, 409 si le nom est déjà pris.
+ */
 @RestController
 @RequestMapping("/api/comptes")
 @RequiredArgsConstructor

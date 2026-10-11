@@ -10,6 +10,7 @@ import fr.efrei.chatapi.dto.UtilisateurResponse;
 import fr.efrei.chatapi.service.UtilisateurService;
 import lombok.RequiredArgsConstructor;
 
+// Annuaire des utilisateurs, exposé sous forme de DTO : l'entité et son hachage ne sortent jamais du serveur.
 @RestController
 @RequestMapping("/api/utilisateurs")
 @RequiredArgsConstructor

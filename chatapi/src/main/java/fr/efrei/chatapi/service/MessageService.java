@@ -14,6 +14,7 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
 
+    // Les entités sont converties en DTO : le format JSON imposé par le sujet reste indépendant du schéma.
     public List<MessageDto> historique(Long utilisateurConnecteId, Long interlocuteurId) {
         return messageRepository.findMessages(utilisateurConnecteId, interlocuteurId).stream()
                 .map(MessageDto::depuis)

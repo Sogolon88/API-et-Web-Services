@@ -14,7 +14,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Authentifie chaque requête REST à partir de l'en-tête « Authorization: Bearer ».
+ * Authentifie chaque requête REST à partir de l'en-tête "Authorization: Bearer <jeton>".
+ * Le serveur ne conserve aucune session : chaque requête porte sa propre preuve d'identité,
+ * conformément au principe sans état (stateless) de REST.
  * Volontairement pas annoté @Component : Spring Boot l'enregistrerait aussi comme
  * filtre servlet global et il s'exécuterait deux fois.
  */

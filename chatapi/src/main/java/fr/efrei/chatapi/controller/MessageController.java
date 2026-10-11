@@ -13,6 +13,10 @@ import fr.efrei.chatapi.security.UtilisateurConnecte;
 import fr.efrei.chatapi.service.MessageService;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Historique des conversations. Il relève de REST et non du WebSocket : c'est une ressource
+ * identifiable par une URL, consultable sans canal ouvert, par exemple au retour d'un utilisateur hors ligne.
+ */
 @RestController
 @RequestMapping("/api/messages")
 @RequiredArgsConstructor
