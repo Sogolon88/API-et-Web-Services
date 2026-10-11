@@ -1,0 +1,5 @@
+hs_err_pid*.log
+replay_pid*.log
+.github/modernize/
+.claude/
+.vscode/
