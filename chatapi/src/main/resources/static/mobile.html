@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f3efe6">
+    <title>ChatAPI - mobile</title>
+    <link rel="stylesheet" href="chat.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+
+<section id="vue-connexion" class="connexion">
+    <div class="marque">
+        <p class="surtitre">API &amp; Web Services - EFREI</p>
+        <h1>ChatAPI</h1>
+        <p class="accroche">Messagerie instantanée entre deux appareils, reliés par un serveur central.</p>
+    </div>
+    <form id="form-connexion">
+        <label>Nom d'utilisateur
+            <input id="username" autocomplete="username" autocapitalize="none" required>
+        </label>
+        <label>Mot de passe
+            <input id="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Se connecter</button>
+        <button type="button" id="bouton-creer" class="secondaire">Créer un compte</button>
+        <a class="autre-version" href="desktop.html">Version bureau</a>
+    </form>
+</section>
+
+<section id="vue-chat" hidden>
+    <aside class="panneau-contacts">
+        <header class="entete-contacts">
+            <div>
+                <p class="surtitre">Connecté en tant que</p>
+                <p id="moi" class="nom-moi"></p>
+            </div>
+            <button type="button" id="bouton-deconnexion" class="lien">Déconnexion</button>
+        </header>
+        <h2 class="surtitre titre-liste">Conversations</h2>
+        <ul id="liste-utilisateurs"></ul>
+    </aside>
+    <main class="panneau-conversation">
+        <p class="vide">Choisissez un contact pour afficher la conversation.</p>
+        <header class="entete-conversation">
+            <button type="button" id="bouton-retour" class="retour" aria-label="Retour aux contacts"></button>
+            <div>
+                <h2 id="titre-conversation"></h2>
+                <p class="sous-titre">
+                    <span id="saisie" hidden>écrit un message</span><span id="etat-conversation"></span>
+                </p>
+            </div>
+        </header>
+        <div id="messages" role="log" aria-live="polite"></div>
+        <form id="form-message" class="composeur">
+            <input id="contenu" maxlength="2000" autocomplete="off" placeholder="Message" aria-label="Message" disabled>
+            <button type="submit" disabled>Envoyer</button>
+        </form>
+    </main>
+</section>
+
+<p id="statut" role="status"></p>
+
+<script src="chat.js"></script>
+</body>
+</html>

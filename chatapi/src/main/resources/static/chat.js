@@ -14,13 +14,17 @@ const etat = {
     // Destinataire prévenu que j'écris (null sinon), et minuteurs de l'indicateur de saisie.
     saisieVers: null,
     minuteurSaisie: null,
-    minuteurIndicateur: null
+    minuteurIndicateur: null,
+    minuteurStatut: null,
+    // Jour du dernier message affiché ("2026-09-21"), pour insérer un séparateur quand il change.
+    dernierJour: null
 };
 
 // Sans frappe pendant ce délai, la saisie est considérée comme terminée.
 const DELAI_FIN_SAISIE_MS = 2000;
 // Filet de sécurité : l'indicateur s'efface seul si la fin de saisie n'arrive jamais (appareil déconnecté).
 const DUREE_MAX_INDICATEUR_MS = 5000;
+const DUREE_STATUT_MS = 5000;
 
 const el = id => document.getElementById(id);
 
@@ -59,6 +63,10 @@ function afficherStatut(texte, erreur = false) {
     const statut = el("statut");
     statut.textContent = texte;
     statut.classList.toggle("erreur", erreur);
+    clearTimeout(etat.minuteurStatut);
+    if (texte) {
+        etat.minuteurStatut = setTimeout(() => afficherStatut(""), DUREE_STATUT_MS);
+    }
 }
 
 async function seConnecter(creerCompte) {
@@ -224,10 +232,19 @@ function changerPresence(presence) {
         return;
     }
     utilisateur.enLigne = presence.enLigne;
-    if (!presence.enLigne && presence.utilisateurId === etat.interlocuteurId) {
-        afficherIndicateurSaisie(false);
+    if (presence.utilisateurId === etat.interlocuteurId) {
+        afficherEtatConversation();
+        if (!presence.enLigne) {
+            afficherIndicateurSaisie(false);
+        }
     }
     afficherUtilisateurs();
+}
+
+function afficherEtatConversation() {
+    el("etat-conversation").textContent = etat.utilisateurs.get(etat.interlocuteurId).enLigne
+        ? "En ligne"
+        : "Hors ligne";
 }
 
 async function chargerUtilisateurs() {
@@ -239,29 +256,38 @@ async function chargerUtilisateurs() {
     afficherUtilisateurs();
 }
 
+// Crée un élément avec une classe et un texte ; textContent et non innerHTML :
+// un nom ou un message ne peut jamais injecter de HTML (XSS).
+function creer(balise, classe, texte = "") {
+    const element = document.createElement(balise);
+    element.className = classe;
+    element.textContent = texte;
+    return element;
+}
+
 function afficherUtilisateurs() {
     const liste = el("liste-utilisateurs");
     liste.replaceChildren();
+    if (etat.utilisateurs.size === 0) {
+        liste.append(creer("li", "liste-vide", "Aucun autre utilisateur pour l'instant."));
+        return;
+    }
     for (const utilisateur of etat.utilisateurs.values()) {
-        const bouton = document.createElement("button");
+        const bouton = creer("button", "contact");
         bouton.type = "button";
         bouton.classList.toggle("actif", utilisateur.id === etat.interlocuteurId);
         bouton.onclick = () => ouvrirConversation(utilisateur.id);
 
-        const pastille = document.createElement("span");
-        pastille.className = "pastille" + (utilisateur.enLigne ? " en-ligne" : "");
-        pastille.title = utilisateur.enLigne ? "En ligne" : "Hors ligne";
+        const avatar = creer("span", "avatar", utilisateur.username.charAt(0));
+        avatar.append(creer("span", "pastille" + (utilisateur.enLigne ? " en-ligne" : "")));
 
-        // textContent et non innerHTML : un nom ou un message ne peut jamais injecter de HTML (XSS).
-        const nom = document.createElement("span");
-        nom.textContent = utilisateur.username;
+        const identite = creer("span", "identite");
+        identite.append(creer("span", "nom", utilisateur.username),
+            creer("span", "etat", utilisateur.enLigne ? "En ligne" : "Hors ligne"));
 
-        bouton.append(pastille, nom);
+        bouton.append(avatar, identite);
         if (utilisateur.nonLus > 0) {
-            const badge = document.createElement("span");
-            badge.className = "non-lus";
-            badge.textContent = utilisateur.nonLus;
-            bouton.append(badge);
+            bouton.append(creer("span", "non-lus", utilisateur.nonLus));
         }
         const element = document.createElement("li");
         element.append(bouton);
@@ -278,8 +304,10 @@ async function ouvrirConversation(id) {
     afficherUtilisateurs();
     document.body.classList.add("conversation-ouverte");
     el("titre-conversation").textContent = interlocuteur.username;
+    afficherEtatConversation();
     el("messages").replaceChildren();
     etat.bulles = new Map();
+    etat.dernierJour = null;
     for (const element of el("form-message").elements) {
         element.disabled = false;
     }
@@ -293,7 +321,10 @@ async function ouvrirConversation(id) {
     } catch (e) {
         afficherStatut(e.message, true);
     }
-    el("contenu").focus();
+    // Sur téléphone, donner le focus ouvrirait le clavier et masquerait l'historique.
+    if (matchMedia("(pointer: fine)").matches) {
+        el("contenu").focus();
+    }
 }
 
 function fermerConversation() {
@@ -309,25 +340,32 @@ function ajouterBulle(message) {
     if (etat.bulles.has(message.id)) {
         return;
     }
+    const zone = el("messages");
+    // Date fixée par le serveur, au format "2026-09-21T10:15:30" : jour, puis heure et minutes.
+    const jour = message.dateEnvoi.slice(0, 10);
+    if (jour !== etat.dernierJour) {
+        etat.dernierJour = jour;
+        zone.append(creer("p", "jour", libelleJour(jour)));
+    }
     const deMoi = message.expediteurId === etat.moi.id;
-    const bulle = document.createElement("div");
-    bulle.className = "bulle " + (deMoi ? "moi" : "autre");
-    const contenu = document.createElement("p");
-    contenu.textContent = message.contenu;
-    // Date fixée par le serveur, au format "2026-09-21T10:15:30" : on garde l'heure et les minutes.
-    const pied = document.createElement("small");
-    pied.textContent = message.dateEnvoi.slice(11, 16);
-    const statut = document.createElement("span");
+    const bulle = creer("div", "bulle " + (deMoi ? "moi" : "autre"));
+    const pied = creer("small", "", message.dateEnvoi.slice(11, 16));
+    const statut = creer("span", "statut", deMoi ? LIBELLE_STATUT[message.statut] : "");
     if (deMoi) {
-        statut.className = "statut";
-        statut.textContent = LIBELLE_STATUT[message.statut];
         pied.append(" - ", statut);
     }
     etat.bulles.set(message.id, {element: statut, statut: message.statut});
-    bulle.append(contenu, pied);
-    const zone = el("messages");
+    bulle.append(creer("p", "", message.contenu), pied);
     zone.append(bulle);
     zone.scrollTop = zone.scrollHeight;
+}
+
+function libelleJour(jour) {
+    const date = new Date(jour + "T00:00:00");
+    if (date.toDateString() === new Date().toDateString()) {
+        return "Aujourd'hui";
+    }
+    return date.toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"});
 }
 
 function envoyerMessage(evenement) {
@@ -360,6 +398,11 @@ el("bouton-deconnexion").addEventListener("click", () => deconnecter());
 el("bouton-retour").addEventListener("click", fermerConversation);
 el("form-message").addEventListener("submit", envoyerMessage);
 el("contenu").addEventListener("input", signalerSaisie);
+document.addEventListener("keydown", evenement => {
+    if (evenement.key === "Escape" && etat.interlocuteurId !== null) {
+        fermerConversation();
+    }
+});
 
 if (etat.token && etat.moi) {
     demarrer();

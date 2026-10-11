@@ -111,9 +111,10 @@ class ApiRestTests {
 
     @Test
     void clientWebAccessibleSansJeton() throws Exception {
-        mockMvc.perform(get("/index.html")).andExpect(status().isOk());
-        mockMvc.perform(get("/chat.js")).andExpect(status().isOk());
-        mockMvc.perform(get("/chat.css")).andExpect(status().isOk());
+        for (String fichier : new String[] {"index.html", "mobile.html", "desktop.html",
+                "chat.js", "chat.css", "mobile.css", "desktop.css"}) {
+            mockMvc.perform(get("/" + fichier)).andExpect(status().isOk());
+        }
     }
 
     @Test

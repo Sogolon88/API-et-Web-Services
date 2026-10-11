@@ -51,9 +51,9 @@ public class SecurityConfig {
                         // Le jeton du WebSocket est dans l'URL et non dans l'en-tête : il est vérifié
                         // par JwtHandshakeInterceptor, qui refuse lui-même le handshake avec un 401.
                         .requestMatchers(HttpMethod.GET, "/ws/messages").permitAll()
-                        // Fichiers du client web, listés un par un : ils ne contiennent aucune donnée,
-                        // et toute autre ressource reste protégée par défaut.
-                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/chat.js", "/chat.css").permitAll()
+                        // Fichiers du client web, à la racine uniquement ("/*" ne descend pas dans /api) :
+                        // ils ne contiennent aucune donnée, et toute autre ressource reste protégée par défaut.
+                        .requestMatchers(HttpMethod.GET, "/", "/*.html", "/*.css", "/*.js").permitAll()
                         // Documentation OpenAPI publique : elle décrit l'API, les endpoints restent protégés.
                         .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
                         .permitAll()

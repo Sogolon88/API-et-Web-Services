@@ -1,0 +1,103 @@
+/* Client mobile : une seule vue à la fois sur toute la hauteur de l'écran, zones tactiles
+   d'au moins 44 px, marges de sécurité des écrans à encoche (env(safe-area-inset-*)). */
+
+body {
+    overscroll-behavior: none;
+}
+
+/* 16 px minimum : en dessous, iOS zoome automatiquement sur le champ sélectionné. */
+input {
+    font-size: 16px;
+}
+
+/* Connexion */
+.connexion {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2.25rem;
+    padding: calc(2rem + env(safe-area-inset-top)) 1.5rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+/* Messagerie : la conversation glisse par-dessus la liste des contacts. */
+#vue-chat {
+    position: relative;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+.panneau-contacts,
+.panneau-conversation {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--papier);
+    transition: transform 0.25s ease;
+}
+
+.panneau-conversation {
+    transform: translateX(100%);
+}
+
+body.conversation-ouverte .panneau-conversation {
+    transform: none;
+}
+
+body.conversation-ouverte .panneau-contacts {
+    transform: translateX(-25%);
+}
+
+.entete-contacts {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: calc(1.25rem + env(safe-area-inset-top)) 1.25rem 1rem;
+}
+
+.nom-moi {
+    margin: 0.1rem 0 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.titre-liste {
+    padding: 0 1.25rem 0.5rem;
+}
+
+#liste-utilisateurs {
+    flex: 1;
+    overflow-y: auto;
+    border-top: 1px solid var(--trait);
+    background: var(--papier-clair);
+}
+
+.contact {
+    border-bottom: 1px solid var(--trait);
+}
+
+.panneau-conversation .vide {
+    display: none;
+}
+
+.entete-conversation {
+    padding: calc(0.4rem + env(safe-area-inset-top)) 0.75rem 0.5rem 0.25rem;
+    border-bottom: 1px solid var(--trait);
+    background: var(--papier-clair);
+}
+
+#messages {
+    flex: 1;
+    padding: 0.75rem 0.75rem 1rem;
+}
+
+.bulle {
+    max-width: 82%;
+}
+
+.composeur {
+    padding: 0.6rem 0.6rem calc(0.6rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--trait);
+    background: var(--papier-clair);
+}

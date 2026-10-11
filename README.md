@@ -14,8 +14,7 @@ Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échang
 | Protection des endpoints (401 sans jeton valide) | Spring Security + JWT | Fait |
 | Envoi et réception en direct, message enregistré avant livraison | WebSocket | Fait |
 | Présence en ligne et hors ligne en direct | WebSocket | Fait |
-| Client web de test, utilisable sur téléphone et sur ordinateur | HTML / CSS / JavaScript | Fait |
-| Interfaces finales mobile et bureau | HTML / CSS / JavaScript | Prévu |
+| Deux clients distincts : `mobile.html` (téléphone) et `desktop.html` (ordinateur) | HTML / CSS / JavaScript | Fait |
 | Bonus : accusés de réception et de lecture (envoyé, livré, lu) | WebSocket | Fait |
 | Bonus : indicateur de saisie | WebSocket | Fait |
 | Bonus : notification hors ligne par webhook | HTTP sortant | Fait |
@@ -34,7 +33,14 @@ cd chatapi
 
 Le serveur démarre sur **http://localhost:8080**. Le premier lancement est plus long, le temps de télécharger les dépendances.
 
-Ouvrir **http://localhost:8080** dans le navigateur affiche le client web. Pour essayer seul sur un ordinateur, ouvrir deux onglets et se connecter avec un compte différent dans chacun (par exemple `seyni` et `fode`) : chaque onglet garde son propre jeton.
+Ouvrir **http://localhost:8080** dans le navigateur redirige vers le client adapté à l'appareil :
+
+| Client | URL | Disposition |
+|---|---|---|
+| Mobile | `http://<hôte>:8080/mobile.html` | Une vue à la fois : liste des contacts, puis conversation en plein écran |
+| Bureau | `http://<hôte>:8080/desktop.html` | Contacts et conversation côte à côte, touche Échap pour fermer la conversation |
+
+Les deux clients partagent la même logique (`chat.js`) et le même thème (`chat.css`) ; seule la mise en page diffère. Pour essayer seul sur un ordinateur, ouvrir deux onglets et se connecter avec un compte différent dans chacun (par exemple `seyni` et `fode`) : chaque onglet garde son propre jeton.
 
 Par défaut :
 - les données sont enregistrées dans une base **H2** (`chatapi/data/`), elles sont conservées entre deux redémarrages ;
@@ -197,7 +203,8 @@ API-et-Web-Services/
         │   ├── model/                       entités Utilisateur et Message, StatutMessage
         │   └── dto/                         objets JSON échangés (records)
         ├── main/resources/
-        │   ├── static/                          client web (index.html, chat.js, chat.css)
+        │   ├── static/                          clients web : mobile.html, desktop.html,
+        │   │                                    chat.js et chat.css partagés, mobile.css, desktop.css
         │   ├── application.properties           configuration par défaut (H2)
         │   └── application-postgres.properties  profil PostgreSQL
         └── test/                            tests JUnit : API REST (MockMvc), WebSocket, limitation de débit
