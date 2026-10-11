@@ -1,75 +1,141 @@
-# Messagerie instantanée entre deux appareils
+# ChatAPI
 
-Projet de synthèse du module **API & Web Services** ( Ingénierie Informatique, EFREI).
+Messagerie instantanée entre deux appareils distincts, réalisée pour le projet de synthèse du module **API & Web Services** (cycle ingénieur, EFREI).
 
-Cette application permet à deux utilisateurs, connectés depuis deux appareils différents (par exemple un téléphone et un ordinateur), de s'échanger des messages en temps réel. Les appareils ne communiquent jamais directement : tous les messages passent par un serveur central qui les enregistre puis les retransmet.
-Real-time messaging application using REST API, WebSocket, JWT authentication, and JSON for secure and instant communication between multiple devices.
+Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échangent des messages en temps réel. Les appareils ne communiquent jamais directement : chaque message passe par le serveur ChatAPI, qui l'enregistre puis le retransmet au destinataire.
 
-## Fonctionnalité:
+## Fonctionnalités
 
-- **API REST** : création de compte, connexion, liste des utilisateurs et historique des messages.
-- **WebSocket** : envoi et réception des messages en direct, sans rafraîchir la page.
-- **JWT** : chaque utilisateur s'authentifie et le serveur protège les endpoints sensibles.
-- **PostgreSQL** : les comptes et les messages sont persistés côté serveur, donc l'historique reste disponible après une reconnexion.
-- **Deux clients web** (HTML/JavaScript) : une page « mobile » et une page « bureau », servies par le serveur.
+| Fonctionnalité | Technologie | État |
+|---|---|---|
+| Création de compte et connexion | REST + JWT | ✅ |
+| Liste des utilisateurs | REST | ✅ (statut en ligne : à venir) |
+| Historique d'une conversation | REST | ✅ |
+| Protection des endpoints (401 sans jeton valide) | Spring Security + JWT | ✅ |
+| Envoi et réception en direct | WebSocket | 🚧 en cours |
+| Clients « mobile » et « bureau » | HTML / CSS / JavaScript | 🚧 en cours |
+| Bonus : accusés de lecture, indicateur de saisie, webhook hors ligne, limitation de débit, Swagger | — | 🚧 prévu |
+
+## Lancer le projet
+
+**Prérequis : Java 17 ou plus récent.** Rien d'autre à installer : Gradle, le JDK 21 du projet et la base de données sont fournis ou téléchargés automatiquement.
+
+```powershell
+cd chatapi
+.\gradlew.bat bootRun        # Windows
+./gradlew bootRun            # macOS / Linux
+```
+
+Le serveur démarre sur **http://localhost:8080**. Le premier lancement est plus long, le temps de télécharger les dépendances.
+
+Par défaut :
+- les données sont enregistrées dans une base **H2** (`chatapi/data/`), elles sont conservées entre deux redémarrages ;
+- sans variable `JWT_SECRET`, une clé de signature aléatoire est générée au démarrage. Les jetons sont alors invalidés à chaque redémarrage : il suffit de se reconnecter.
+
+### Lancer les tests
+
+```powershell
+cd chatapi
+.\gradlew.bat test
+```
+
+Les tests utilisent une base H2 en mémoire et ne touchent pas aux données.
+
+### Configuration facultative
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `JWT_SECRET` | Clé de signature des jetons (32 caractères minimum) | Clé aléatoire à chaque démarrage |
+| `SPRING_PROFILES_ACTIVE=postgres` | Utiliser PostgreSQL au lieu de H2 | H2 |
+| `DB_URL` | URL PostgreSQL (profil `postgres`) | `jdbc:postgresql://localhost:5432/chatapiDB` |
+| `DB_USER` | Utilisateur PostgreSQL (profil `postgres`) | `postgres` |
+| `DB_PASSWORD` | Mot de passe PostgreSQL (profil `postgres`) | — |
+
+Exemple avec PostgreSQL (la base `chatapiDB` doit exister) :
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE='postgres'
+$env:DB_PASSWORD='mot_de_passe'
+.\gradlew.bat bootRun
+```
+
+## API REST
+
+Tous les échanges sont en JSON. Sauf la création de compte et la connexion, chaque requête doit porter l'en-tête `Authorization: Bearer <jeton>`, sinon le serveur répond `401 Unauthorized`.
+
+| Méthode | URL | Rôle | Réponses |
+|---|---|---|---|
+| `POST` | `/api/comptes` | Créer un compte | `201`, `400` données invalides, `409` nom déjà pris |
+| `POST` | `/api/auth/login` | Se connecter et recevoir un JWT | `200`, `401` identifiants invalides |
+| `GET` | `/api/utilisateurs` | Lister les utilisateurs | `200`, `401` |
+| `GET` | `/api/messages/{utilisateurId}` | Historique avec un utilisateur | `200`, `401` |
+
+**Créer un compte puis se connecter**
+
+```http
+POST /api/comptes
+Content-Type: application/json
+
+{ "username": "alice", "password": "secret123" }
+```
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{ "username": "alice", "password": "secret123" }
+```
+
+```json
+{ "token": "eyJhbGciOiJIUzI1NiJ9...", "type": "Bearer", "id": 1, "username": "alice" }
+```
+
+**Message de l'historique**
+
+```json
+{ "id": 1, "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !", "dateEnvoi": "2026-09-21T10:15:30" }
+```
+
+## Tester depuis un téléphone
+
+Disponible avec les clients web (en cours).
+
+1. Le téléphone et le PC sont sur le même réseau Wi-Fi.
+2. Récupérer l'adresse IPv4 du PC avec `ipconfig`.
+3. Autoriser le port 8080 dans le pare-feu Windows (réseau privé).
+4. Ouvrir `http://<IPv4 du PC>:8080` sur le téléphone.
 
 ## Technologies
 
-Java, Spring Boot (Web, WebSocket, Security, Data JPA), Gradle, PostgreSQL, JWT, HTML/CSS/JavaScript.
+Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), Gradle 9, JWT (jjwt), H2 et PostgreSQL, Lombok, HTML / CSS / JavaScript.
 
-## Structure du projet:
+## Structure du projet
+
 ```
-API_Web_Services/
+API-et-Web-Services/
 ├── README.md
-├── Projet_Messagerie_Instantanee.pdf      (sujet)
-├── docs/
-│   ├── rapport.pdf                        (rapport de 5 à 8 pages)
-│   ├── architecture.png                   (schéma d'architecture)
-│   └── demo.png                           (capture des deux appareils)
-└── server/
-    ├── build.gradle
-    ├── settings.gradle
-    ├── gradlew / gradlew.bat
+├── Projet_Messagerie_Instantanee.pdf        sujet
+└── chatapi/                                 serveur Spring Boot
+    ├── build.gradle, settings.gradle
+    ├── gradlew, gradlew.bat                 Gradle fourni, rien à installer
     └── src/
-        ├── main/
-        │   ├── java/fr/efrei/chatapi/
-        │   │   ├── chatApplication.java
-        │   │   ├── config/
-        │   │   │   ├── SecurityConfig.java        (règles JWT, routes publiques/protégées)
-        │   │   │   └── WebSocketConfig.java       (déclare /ws/messages)
-        │   │   ├── controller/
-        │   │   │   ├── CompteController.java      (POST /api/comptes)
-        │   │   │   ├── AuthController.java        (POST /api/auth/login)
-        │   │   │   ├── UtilisateurController.java (GET /api/utilisateurs)
-        │   │   │   └── MessageController.java     (GET /api/messages/{id})
-        │   │   ├── websocket/
-        │   │   │   ├── MessageWebSocketHandler.java (réception, sauvegarde, relais)
-        │   │   │   ├── JwtHandshakeInterceptor.java (vérifie le JWT à la connexion)
-        │   │   │   └── SessionRegistry.java         (table userId → session)
-        │   │   ├── security/
-        │   │   │   ├── JwtService.java            (création et validation du jeton)
-        │   │   │   └── JwtAuthFilter.java         (filtre des requêtes REST)
-        │   │   ├── service/
-        │   │   │   ├── UtilisateurService.java
-        │   │   │   └── MessageService.java
-        │   │   ├── repository/
-        │   │   │   ├── UtilisateurRepository.java
-        │   │   │   └── MessageRepository.java
-        │   │   ├── model/
-        │   │   │   ├── Utilisateur.java           (entité)
-        │   │   │   └── Message.java               (entité)
-        │   │   └── dto/                           (objets JSON échangés)
-        │   └── resources/
-        │       ├── application.properties         (base, port, secret JWT)
-        │       └── static/                        (les clients)
-        │           ├── mobile.html
-        │           ├── desktop.html
-        │           ├── css/
-        │           │   ├── mobile.css
-        │           │   └── desktop.css
-        │           └── js/
-        │               └── chat.js                (login, fetch, WebSocket : partagé)
-        └── test/
+        ├── main/java/fr/efrei/chatapi/
+        │   ├── controller/                  endpoints REST
+        │   │   ├── CompteController         POST /api/comptes
+        │   │   ├── AuthController           POST /api/auth/login
+        │   │   ├── UtilisateurController    GET  /api/utilisateurs
+        │   │   └── MessageController        GET  /api/messages/{id}
+        │   ├── security/                    SecurityConfig, JwtService, JwtAuthFilter
+        │   ├── service/                     logique métier
+        │   ├── repository/                  accès à la base (Spring Data JPA)
+        │   ├── model/                       entités Utilisateur et Message
+        │   └── dto/                         objets JSON échangés (records)
+        ├── main/resources/
+        │   ├── application.properties           configuration par défaut (H2)
+        │   └── application-postgres.properties  profil PostgreSQL
+        └── test/                            tests JUnit (H2 en mémoire)
 ```
 
-## Projet développé en 2ème année du cycle ingénieur Big Data & Machine Learning - EFREI
+---
+
+Projet réalisé en 2ᵉ année du cycle ingénieur Big Data & Machine Learning, EFREI.
