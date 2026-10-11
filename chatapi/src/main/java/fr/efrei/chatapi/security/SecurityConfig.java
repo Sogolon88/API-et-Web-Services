@@ -48,6 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/comptes", "/api/auth/login").permitAll()
                         // /error doit rester public, sinon chaque erreur serait masquée par un 401.
                         .requestMatchers("/error").permitAll()
+                        // Le jeton du WebSocket est dans l'URL et non dans l'en-tête : il est vérifié
+                        // par JwtHandshakeInterceptor, qui refuse lui-même le handshake avec un 401.
+                        .requestMatchers(HttpMethod.GET, "/ws/messages").permitAll()
                         .anyRequest().authenticated())
                 // Par défaut Spring répond 403 ; le sujet exige 401 pour une requête sans jeton valide.
                 .exceptionHandling(exceptions -> exceptions
