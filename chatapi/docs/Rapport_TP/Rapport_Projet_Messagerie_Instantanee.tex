@@ -1,0 +1,412 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Encodage et langue ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage{csquotes}
+\usepackage{parskip}
+\setlength{\parskip}{9pt}
+\linespread{1.12}
+\raggedbottom
+\emergencystretch=3em
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+
+% ---------- Mise en page ----------
+\usepackage[margin=2.2cm,top=1.8cm,bottom=1.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{needspace}
+\usepackage{placeins}
+\renewcommand{\topfraction}{0.85}\renewcommand{\textfraction}{0.1}\renewcommand{\floatpagefraction}{0.8}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+\usepackage{booktabs}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\setlist[itemize]{label=\textbullet,topsep=4pt,itemsep=4pt}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black]{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\definecolor{tachenavy}{RGB}{21,35,80}
+\newcommand{\tachesection}[1]{%
+\needspace{6\baselineskip}%
+\color{tachenavy}%
+\section{#1}%
+\color{black}%
+}
+
+% ---------- Style des titres ----------
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titlespacing*{\section}{0pt}{18pt}{8pt}
+\titlespacing*{\subsection}{0pt}{12pt}{5pt}
+
+\setlength{\headheight}{15pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{Projet : Messagerie instantanée entre deux appareils}
+\fancyhead[R]{KEITA Fode Laye, BALDE Seyni Junior}
+\fancyfoot[C]{\thepage}
+
+% ---------- Listings ----------
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\small,
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=true,
+  frame=single,
+  rulecolor=\color{gray!50},
+  backgroundcolor=\color{gray!5},
+  keywordstyle=\color{purple!70!black}\bfseries,
+  commentstyle=\color{green!40!black},
+  stringstyle=\color{orange!70!black},
+  aboveskip=8pt,
+  belowskip=8pt,
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {à}{{\`a}}1 {ê}{{\^e}}1 {ç}{{\c{c}}}1,
+}
+\lstdefinelanguage{json}{
+  morestring=[b]",
+  sensitive=true,
+}
+
+% Capture : image si le fichier existe dans images/, sinon cadre signalant la capture manquante
+\newcommand{\capture}[3]{%
+\IfFileExists{images/#1}%
+{\includegraphics[width=#2,height=#3,keepaspectratio]{images/#1}}%
+{\fbox{\parbox[c][3cm][c]{0.8\linewidth}{\centering\small Capture à ajouter : \texttt{images/\detokenize{#1}}}}}}
+
+% Figure placée exactement à l'endroit du code (pas de flottant, pas de page vide)
+\newcommand{\fig}[4]{%
+\begin{figure}[!htbp]
+\centering
+\capture{#1}{#2\textwidth}{0.27\textheight}
+\caption{#3}
+\label{#4}
+\end{figure}}
+
+% Deux captures côte à côte
+\newcommand{\figpair}[6]{%
+\begin{figure}[!htbp]
+\centering
+\begin{minipage}[t]{0.49\textwidth}\centering
+\capture{#1}{\linewidth}{0.25\textheight}
+\caption{#2}\label{#3}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\textwidth}\centering
+\capture{#4}{\linewidth}{0.25\textheight}
+\caption{#5}\label{#6}
+\end{minipage}
+\end{figure}}
+
+\begin{document}
+
+% ================= PAGE DE GARDE =================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Large EFREI, M1 Big Data \& Machine Learning\par}
+\vspace{0.3cm}
+{\large Module : API \& Web Services\par}
+\vspace{2.5cm}
+{\huge\bfseries Rapport de projet\par}
+\vspace{0.5cm}
+{\Large Application de messagerie instantanée entre deux appareils\par}
+\vspace{2.5cm}
+
+\begin{tabular}{ll}
+\textbf{Étudiants} & KEITA Fode Laye \\
+ & BALDE Seyni Junior (ID20260097) \\
+\textbf{Promotion} & ING2-APP-BDML1 \\
+\textbf{Enseignant} & Ralph Bou Nader \\
+\end{tabular}
+
+\vfill
+{\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ================= OBJECTIFS =================
+\section{Objectifs et mise en place}
+
+Ce projet clôture le module en combinant les briques vues séparément : JSON (chapitre 3), REST (chapitre 4), WebSocket (chapitre 6) et sécurité par JWT (chapitre 7). Il s'agit d'une messagerie minimale mais complète : deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échangent des messages en temps réel par l'intermédiaire d'un serveur central qui les enregistre.
+
+Le serveur, ChatAPI, est écrit en Java 21 avec Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation). Les données sont stockées dans une base H2 enregistrée sur disque, ou dans PostgreSQL avec le profil \texttt{postgres}. Les deux clients sont des pages HTML, CSS et JavaScript sans framework, servies par le serveur lui-même. Le projet se lance avec \texttt{gradlew bootRun}, sans autre prérequis que Java 17 : Gradle, le JDK du projet et la base sont fournis ou téléchargés automatiquement. Le code a été repris à partir d'une première base (entités, inscription et connexion), mise en conformité avec le sujet puis complétée.
+
+% ================= ARCHITECTURE =================
+\FloatBarrier
+\tachesection{Architecture}
+
+Les deux appareils ne communiquent jamais directement : chaque message passe par le serveur, qui l'enregistre puis le retransmet (figure~\ref{fig:archi}). Chaque client utilise deux canaux : HTTP pour les opérations ponctuelles (compte, liste des utilisateurs, historique) et une connexion WebSocket permanente pour le temps réel.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  boite/.style={draw, rounded corners=3pt, align=center, font=\small, inner sep=6pt},
+  couche/.style={draw, fill=gray!8, align=center, font=\small, text width=7.4cm, inner sep=4pt},
+  fleche/.style={-{Latex[length=2.4mm]}, thick},
+  lien/.style={{Latex[length=2.4mm]}-{Latex[length=2.4mm]}, thick},
+  etiquette/.style={font=\footnotesize, align=center, fill=white, inner sep=2pt}]
+
+\node[boite, minimum width=4.2cm] (a) at (-4.2,0) {\textbf{Appareil A : téléphone}\\\texttt{mobile.html}};
+\node[boite, minimum width=4.2cm] (b) at (4.2,0) {\textbf{Appareil B : ordinateur}\\\texttt{desktop.html}};
+
+\node[couche] (c1) at (0,-3.0) {Contrôleurs REST \quad|\quad Handler WebSocket};
+\node[couche, below=0pt of c1] (c2) {Sécurité : filtre JWT, intercepteur de handshake};
+\node[couche, below=0pt of c2] (c3) {Services : messages, utilisateurs, débit, notifications};
+\node[couche, below=0pt of c3] (c4) {Dépôts Spring Data JPA};
+\node[draw, thick, rounded corners=4pt, fit=(c1)(c4), inner sep=6pt, label={[font=\small\bfseries]above:Serveur ChatAPI (Spring Boot)}] (srv) {};
+
+\node[boite, below=1.0cm of srv] (bd) {\textbf{Base de données}\\H2 ou PostgreSQL\\(utilisateurs, messages)};
+\node[boite, right=1.1cm of c3, xshift=0.4cm] (tiers) {\textbf{Service tiers}\\(webhook simulé)};
+
+\draw[lien] (a.south) -- node[etiquette, pos=0.45] {REST + JWT\\WebSocket} (srv.north west);
+\draw[lien] (b.south) -- node[etiquette, pos=0.45] {REST + JWT\\WebSocket} (srv.north east);
+\draw[lien] (srv.south) -- (bd.north);
+\draw[fleche, dashed] (srv.east |- c3) -- node[etiquette, above=2pt] {POST} (tiers.west);
+\end{tikzpicture}
+\caption{Architecture client-serveur : aucun échange direct entre les deux appareils.}
+\label{fig:archi}
+\end{figure}
+
+Le serveur suit une architecture en couches : les contrôleurs et le handler WebSocket traitent les échanges, les services portent les règles métier, les dépôts accèdent à la base. Les objets JSON échangés sont des \textbf{DTO} (records Java) aux noms imposés par le sujet ; les entités JPA ne sont jamais exposées, ce qui garantit que le hachage du mot de passe ne quitte pas le serveur.
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}L{2.3cm}L{6.6cm}L{6.3cm}@{}}
+\toprule
+\textbf{Entité} & \textbf{Champs} & \textbf{Règles} \\
+\midrule
+Utilisateur & \texttt{id}, \texttt{username}, \texttt{password} & Nom unique en base ; mot de passe haché par BCrypt, jamais renvoyé. \\
+Message & \texttt{id}, \texttt{expediteurId}, \texttt{destinataireId}, \texttt{contenu}, \texttt{dateEnvoi}, \texttt{statut} & Date fixée par le serveur ; statut \texttt{ENVOYE}, \texttt{LIVRE} ou \texttt{LU}. \\
+\bottomrule
+\end{tabular}}
+
+% ================= API REST =================
+\FloatBarrier
+\tachesection{API REST et authentification JWT}
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}L{1.7cm}L{5.5cm}L{3.9cm}L{4.2cm}@{}}
+\toprule
+\textbf{Méthode} & \textbf{URL} & \textbf{Rôle} & \textbf{Réponses} \\
+\midrule
+POST & \texttt{/api/comptes} & Créer un compte & 201, 400 invalide, 409 nom pris \\
+POST & \texttt{/api/auth/login} & Recevoir un JWT & 200, 401 identifiants invalides \\
+GET & \texttt{/api/utilisateurs} & Utilisateurs et statut \texttt{enLigne} & 200, 401 \\
+GET & \texttt{/api/messages/\{utilisateurId\}} & Historique avec un utilisateur & 200, 401 \\
+\bottomrule
+\end{tabular}}
+
+La connexion renvoie un \textbf{JWT} signé en HMAC-SHA256. Le jeton se compose de trois parties encodées en Base64URL : l'en-tête, la charge utile (nom \texttt{sub}, identifiant \texttt{uid}, dates \texttt{iat} et \texttt{exp}, validité de deux heures) et la signature. La charge utile est lisible par tous ; seule la signature, que le serveur est le seul à pouvoir produire avec sa clé, garantit que le jeton n'a pas été modifié. La clé est lue dans la variable \texttt{JWT\_SECRET}, jamais versionnée ; en son absence, une clé aléatoire est générée au démarrage.
+
+Chaque requête protégée passe par le filtre \texttt{JwtAuthFilter}, qui lit l'en-tête \texttt{Authorization: Bearer} et vérifie signature et expiration. Le serveur ne garde aucune session : il est \textbf{sans état}, chaque requête porte sa propre preuve d'identité. Sans jeton valide, Spring Security répondrait \texttt{403} par défaut ; un point d'entrée dédié renvoie \textbf{401 Unauthorized}, comme l'exige le sujet (figures~\ref{fig:login} et~\ref{fig:401}). L'utilisateur de l'historique est toujours celui du jeton : il est impossible de lire la conversation de deux autres personnes.
+
+\fig{rest_login.png}{1.0}{Swagger UI, \texttt{POST /api/auth/login} : 200 OK et jeton.}{fig:login}
+\fig{rest_401.png}{1.0}{Swagger UI, \texttt{GET /api/utilisateurs} sans jeton : 401.}{fig:401}
+
+% ================= WEBSOCKET =================
+\FloatBarrier
+\tachesection{Canal WebSocket}
+
+Le client ouvre \texttt{ws://<hôte>:8080/ws/messages?token=<JWT>}. Le jeton est passé dans l'URL, car l'API WebSocket des navigateurs ne permet pas d'ajouter un en-tête \texttt{Authorization}. Il est vérifié une seule fois, à l'ouverture, par \texttt{JwtHandshakeInterceptor} : sans jeton valide, le handshake est refusé avec un 401 et le canal n'est jamais ouvert. L'identité est ensuite rattachée à la session pour toute sa durée.
+
+Les connexions ouvertes sont tenues dans un registre (\texttt{SessionRegistry}) : une \texttt{ConcurrentHashMap} qui associe chaque utilisateur à ses sessions, car plusieurs threads la lisent et la modifient en même temps. Une session WebSocket n'accepte pas deux envois simultanés ; chacune est donc enveloppée dans un \texttt{ConcurrentWebSocketSessionDecorator}, qui met les envois en file.
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}L{1.6cm}L{4.4cm}L{9.2cm}@{}}
+\toprule
+\textbf{Type} & \textbf{Sens} & \textbf{Champs} \\
+\midrule
+\texttt{message} & client vers serveur & \texttt{destinataireId}, \texttt{contenu} \\
+\texttt{message} & serveur vers les deux parties & \texttt{id}, \texttt{expediteurId}, \texttt{destinataireId}, \texttt{contenu}, \texttt{dateEnvoi}, \texttt{statut} \\
+\texttt{accuse} & serveur vers expéditeur & \texttt{messageId}, \texttt{statut} \\
+\texttt{lu} & client vers serveur & \texttt{interlocuteurId} \\
+\texttt{saisie} & relayée au destinataire & \texttt{destinataireId} ou \texttt{expediteurId}, \texttt{enCours} \\
+\texttt{presence} & serveur vers les connectés & \texttt{utilisateurId}, \texttt{enLigne} \\
+\texttt{erreur} & serveur vers l'émetteur & \texttt{code}, \texttt{detail} \\
+\bottomrule
+\end{tabular}}
+
+La trame \texttt{message} reçue par le destinataire respecte le format imposé, complété de l'identifiant et du statut :
+
+\begin{lstlisting}[style=code,language=json]
+{"type": "message", "id": 12,
+ "expediteurId": 1, "destinataireId": 2, "contenu": "Bonjour !",
+ "dateEnvoi": "2026-10-11T21:40:12", "statut": "ENVOYE"}
+\end{lstlisting}
+
+Deux règles de sécurité s'appliquent à chaque message. L'expéditeur est celui du jeton vérifié au handshake, jamais celui du JSON reçu ; la date est celle de l'horloge du serveur. Un client qui envoie \texttt{"expediteurId":999} ou une date de l'an 2000 voit ces champs ignorés, ce que vérifie un test d'intégration. Le traitement suit ensuite toujours le même ordre : enregistrement en base, renvoi à l'expéditeur (qui obtient ainsi l'identifiant et la date du serveur), puis relais au destinataire s'il est connecté.
+
+La figure~\ref{fig:demo} montre le scénario de démonstration : un message envoyé depuis l'ordinateur apparaît immédiatement sur le téléphone, sans action de l'utilisateur.
+
+\figpair{demo_bureau.png}{Client bureau (Seyni).}{fig:demo}{demo_mobile.png}{Client mobile (Fode) : message reçu.}{fig:demo2}
+
+% ================= QUESTION REST / WEBSOCKET =================
+\FloatBarrier
+\tachesection{Répartition REST et WebSocket}
+
+\textbf{Question à consigner : pourquoi exposer l'historique en REST plutôt qu'entièrement par WebSocket ?} Parce que l'historique est une \textbf{ressource} que l'on consulte ponctuellement, et non un flux d'événements. Il relève donc du modèle requête-réponse de REST :
+\begin{itemize}
+\item \textbf{Ressource identifiable par une URL} : \texttt{GET /api/messages/2} désigne sans ambiguïté la conversation avec l'utilisateur 2. On peut la tester dans Postman ou Swagger, la documenter, et la protéger avec les codes HTTP habituels (401).
+\item \textbf{Sans état} : la lecture ne dépend d'aucune connexion ouverte. C'est exactement ce qui est nécessaire à l'étape 5 du scénario : après une déconnexion, le client relit l'historique complet par une simple requête, avant même que le WebSocket soit rouvert.
+\item \textbf{Cache} : \texttt{GET} est une méthode sûre et idempotente, dont la réponse peut être mise en cache (en-têtes \texttt{Cache-Control}, \texttt{ETag}) ; un message envoyé sur un WebSocket ne bénéficie d'aucun de ces mécanismes.
+\item \textbf{Pagination et filtrage} : des paramètres de requête (\texttt{?avant=\ldots\&limite=50}) suffiraient pour charger une longue conversation par morceaux.
+\end{itemize}
+
+Faire passer l'historique par le WebSocket obligerait à réinventer ce que HTTP fournit déjà : associer chaque réponse à sa demande, signaler les erreurs, gérer l'authentification de chaque lecture. Le WebSocket est réservé à ce que REST ne sait pas faire : permettre au serveur de \textbf{pousser} une information sans requête préalable, avec une faible latence. La règle suivie dans tout le projet est donc : REST pour l'état (liste des utilisateurs, historique), WebSocket pour le changement d'état (nouveau message, accusé, présence, saisie). La liste des utilisateurs en est l'exemple le plus net : son état initial vient de \texttt{GET /api/utilisateurs} (champ \texttt{enLigne}), puis chaque connexion ou déconnexion est poussée par une trame \texttt{presence}.
+
+% ================= QUESTION HORS LIGNE =================
+\FloatBarrier
+\tachesection{Destinataire hors ligne}
+
+\textbf{Question à consigner : que faire si le destinataire n'est pas connecté ?} Le message ne doit pas être perdu : il est enregistré en base \textbf{avant toute tentative de livraison}, puis livré en différé. Le cycle de vie d'un message est le suivant :
+\begin{enumerate}[topsep=4pt,itemsep=3pt]
+\item enregistrement avec le statut \texttt{ENVOYE} ;
+\item si le destinataire est connecté, relais immédiat, passage à \texttt{LIVRE} et accusé à l'expéditeur ;
+\item sinon, le message attend en base et un webhook prévient un service tiers (section~\ref{sec:bonus}) ;
+\item à la connexion du destinataire, ses messages en attente passent à \texttt{LIVRE} et leurs expéditeurs reçoivent un accusé ; il les lit dans l'historique REST ;
+\item à l'ouverture de la conversation, le client envoie \texttt{lu} : les messages passent à \texttt{LU}.
+\end{enumerate}
+
+Ce fonctionnement reprend le principe de \textbf{Kafka} vu au chapitre 6. Kafka ne supprime pas un événement parce qu'aucun consommateur n'est présent : il l'écrit dans un journal persistant, que chaque consommateur lit à son rythme à partir de sa position (offset). Ici, la table des messages joue le rôle du journal, et le statut \texttt{ENVOYE} celui d'un événement pas encore consommé. La persistance dissocie l'émission de la réception : l'expéditeur n'a pas besoin que le destinataire soit présent.
+
+Les limites sont assumées pour un serveur unique. Le registre des connexions est en mémoire : avec plusieurs instances, il faudrait un intermédiaire partagé (Kafka, ou Redis en publication-abonnement) pour qu'une instance livre un message reçu par une autre. Le webhook n'est pas relancé en cas d'échec, puisque le message reste de toute façon disponible dans l'historique.
+
+% ================= BONUS =================
+\FloatBarrier
+\tachesection{Fonctionnalités bonus}
+\label{sec:bonus}
+
+Les cinq fonctionnalités bonus proposées ont été réalisées.
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{longtable}{@{}L{3.2cm}L{12cm}@{}}
+\toprule
+\textbf{Bonus} & \textbf{Mise en œuvre} \\
+\midrule
+Accusés de réception & Trame \texttt{accuse} à chaque passage à \texttt{LIVRE} ou \texttt{LU} ; le client affiche Envoyé, Livré ou Lu sous chaque message envoyé. \\
+Indicateur de saisie & Trame \texttt{saisie} relayée sans accès à la base ; une trame au début de la frappe, une après deux secondes d'inactivité. \\
+Notification hors ligne & \texttt{POST} JSON vers \texttt{CHAT\_WEBHOOK\_URL}, exécuté en asynchrone (\texttt{@Async}) avec un délai maximal de deux secondes. Sans URL, le service tiers est simulé par la ligne de log \enquote{Notification envoyée à l'utilisateur\ldots}. Le contenu du message n'est jamais transmis au tiers. \\
+Limitation de débit & Fenêtre glissante en mémoire, au plus 20 messages par utilisateur sur toute période de 10 secondes ; au-delà, \texttt{erreur} \texttt{LIMITE\_DEPASSEE} et message non enregistré. \\
+OpenAPI et Swagger & springdoc-openapi ; documentation sur \texttt{/swagger-ui.html}, schéma \texttt{bearer} pour tester les endpoints protégés. \\
+\bottomrule
+\end{longtable}}
+
+\textbf{Statut qui ne recule pas.} Le relais au destinataire et la lecture s'exécutent dans deux threads différents. Si le destinataire lit le message avant que le thread de l'expéditeur ait enregistré \texttt{LIVRE}, ce \texttt{LIVRE} tardif écraserait \texttt{LU}. La mise à jour est donc conditionnelle (\texttt{UPDATE \ldots{} WHERE statut IN (statuts précédents)}) et l'accusé n'est envoyé que si la ligne a réellement changé.
+
+\textbf{Fenêtre glissante plutôt que fixe.} Une fenêtre remise à zéro chaque minute laisse passer deux rafales de part et d'autre de la remise à zéro. La fenêtre glissante conserve les dates des derniers envois et compte ceux des dix dernières secondes, quel que soit le moment.
+
+\figpair{bonus_accuses.png}{Statut Lu et indicateur de saisie.}{fig:accuses}{bonus_swagger.png}{Documentation Swagger UI.}{fig:swagger}
+
+Sans \texttt{CHAT\_WEBHOOK\_URL}, un message envoyé à Fode déconnecté produit dans les logs du serveur la ligne suivante, écrite par un thread de l'exécuteur asynchrone (\texttt{task-1}) et non par celui du WebSocket :
+
+\begin{lstlisting}[style=code,columns=fullflexible,keepspaces=true]
+INFO [task-1] NotificationService : Notification envoyée à l'utilisateur 2
+     (service tiers simulé) : nouveau message de seyni
+\end{lstlisting}
+
+% ================= CLIENTS =================
+\FloatBarrier
+\tachesection{Clients mobile et bureau}
+
+Les deux clients sont des pages distinctes, \texttt{mobile.html} et \texttt{desktop.html}, qui partagent la même logique (\texttt{chat.js}) et le même thème ; seule la mise en page diffère. La version mobile affiche une vue à la fois (la conversation glisse par-dessus la liste des contacts), avec des zones tactiles d'au moins 44 pixels et des champs en 16 pixels pour éviter le zoom automatique d'iOS. La version bureau place contacts et conversation côte à côte. L'adresse racine redirige vers le client adapté à l'appareil. Tout texte reçu est inséré avec \texttt{textContent} et jamais \texttt{innerHTML} : un message contenant du HTML s'affiche tel quel au lieu d'être interprété (protection contre le XSS).
+
+\figpair{accueil_bureau.png}{Écran d'accueil du client bureau.}{fig:accueil1}{accueil_mobile.png}{Écran d'accueil du client mobile.}{fig:accueil2}
+
+% ================= TESTS =================
+\FloatBarrier
+\tachesection{Tests et validation}
+
+Chaque étape a été validée par des tests automatisés, lancés par \texttt{gradlew test} sur une base H2 en mémoire.
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}L{4.3cm}L{1.2cm}L{9.7cm}@{}}
+\toprule
+\textbf{Classe} & \textbf{Tests} & \textbf{Ce qui est vérifié} \\
+\midrule
+\texttt{ApiRestTests} & 10 & Codes 201, 400, 409, 200 et 401 ; hachage BCrypt en base ; mot de passe jamais renvoyé ; historique identique des deux côtés et trié ; fichiers des clients et documentation accessibles sans jeton. \\
+\texttt{WebSocketTests} & 9 & Handshake refusé sans jeton ; usurpation de l'expéditeur ignorée ; relais et accusés ; livraison à la connexion ; lecture ; présence ; saisie ; webhook ; limitation de débit ; trames invalides. \\
+\texttt{RateLimiterTests} & 2 & Refus au-delà de la limite, glissement de la fenêtre, limites indépendantes par utilisateur. \\
+\texttt{ChatapiApplicationTests} & 1 & Démarrage du contexte Spring. \\
+\bottomrule
+\end{tabular}}
+
+Les tests WebSocket démarrent un vrai serveur sur un port aléatoire et y connectent deux clients, Seyni et Fode. Le webhook est reçu par un petit serveur HTTP du JDK qui joue le rôle du service tiers.
+
+Résultat de \texttt{gradlew test}, lancé depuis l'archive de rendu décompressée dans un dossier vierge, comme le ferait un correcteur :
+
+\begin{lstlisting}[style=code,columns=fixed,basewidth=0.5em]
+BUILD SUCCESSFUL in 55s
+ApiRestTests              tests=10  echecs=0  erreurs=0
+ChatapiApplicationTests   tests=1   echecs=0  erreurs=0
+RateLimiterTests          tests=2   echecs=0  erreurs=0
+WebSocketTests            tests=9   echecs=0  erreurs=0
+\end{lstlisting}
+
+% ================= DIFFICULTES =================
+\FloatBarrier
+\tachesection{Difficultés rencontrées}
+
+{\small\renewcommand{\arraystretch}{1.35}
+\begin{longtable}{@{}L{4.4cm}L{5.2cm}L{5.6cm}@{}}
+\toprule
+\textbf{Problème} & \textbf{Cause} & \textbf{Solution} \\
+\midrule
+Gradle s'arrête faute de mémoire & Poste de 8 Go, démons Gradle accumulés & Mémoire du démon plafonnée dans \texttt{gradle.properties}, Java 21 \\
+403 au lieu de 401 sans jeton & Comportement par défaut de Spring Security & Point d'entrée \texttt{HttpStatusEntryPoint}\allowbreak\texttt{(UNAUTHORIZED)} \\
+Authentifier le WebSocket & Aucun en-tête possible depuis un navigateur & Jeton dans l'URL, vérifié à l'interception du handshake \\
+Envois concurrents sur une session & \texttt{sendMessage} n'est pas thread-safe & \texttt{ConcurrentWebSocket}\allowbreak\texttt{SessionDecorator} \\
+\texttt{LIVRE} tardif écrasant \texttt{LU} & Relais et lecture dans deux threads & Mise à jour conditionnelle en base \\
+Toutes les trames rejetées après l'ajout de \texttt{enCours} & Jackson 3 refuse un champ \texttt{boolean} absent & Type \texttt{Boolean}, valeur absente traitée comme \texttt{false} \\
+Renommage des colonnes de \texttt{Message} & \texttt{ddl-auto=update} garde les anciennes colonnes obligatoires & Base de démonstration recréée ; un script de migration en production \\
+\bottomrule
+\end{longtable}}
+
+% ================= TABLEAU RECAPITULATIF =================
+\FloatBarrier
+\needspace{18\baselineskip}
+\section{Tableau récapitulatif du scénario de démonstration}
+
+{\small\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{@{}L{1.2cm}L{4.1cm}L{4.4cm}L{5.5cm}@{}}
+\toprule
+\textbf{Étape} & \textbf{Action} & \textbf{Échange} & \textbf{Résultat} \\
+\midrule
+1 & Connexion de A (Seyni) & \texttt{POST /api/auth/login}, WebSocket & 200, jeton ; canal ouvert. \\
+2 & Connexion de B (Fode) & idem & A reçoit \texttt{presence}, Fode en ligne. \\
+3 & Message de A vers B & trame \texttt{message} & Enregistré, affiché sur B ; Livré puis Lu sur A. \\
+4 & Message de B vers A & trame \texttt{message} & Affiché immédiatement sur A. \\
+5 & Déconnexion puis reconnexion de A & \texttt{GET /api/messages/\{id\}} & Historique complet affiché. \\
+\bottomrule
+\end{tabular}}
+
+% ================= CONCLUSION =================
+\section{Conclusion}
+
+Ce projet assemble les notions du module en un système cohérent : REST porte les ressources (comptes, utilisateurs, historique) avec des URL, des méthodes et des codes standard, tandis que le WebSocket transporte ce qui doit être poussé sans attendre de requête. Le JWT relie les deux canaux : obtenu en REST, il authentifie chaque requête et l'ouverture du WebSocket, sans session côté serveur. La persistance systématique avant toute livraison, inspirée du journal de Kafka, garantit qu'aucun message n'est perdu, que le destinataire soit connecté ou non. Les principales difficultés ne venaient pas des API elles-mêmes mais de la concurrence entre threads et des changements de Spring Boot 4, que seuls les tests d'intégration ont permis de détecter.
+
+% ================= ANNEXE =================
+\section*{Annexe : fichiers joints}
+\addcontentsline{toc}{section}{Annexe : fichiers joints}
+
+\begin{itemize}[topsep=0pt,itemsep=0pt]
+\item \texttt{chatapi/} : code source du serveur et des deux clients (\texttt{src/main/resources/static/}) ;
+\item \texttt{README.md} : installation, lancement, configuration et accès depuis un téléphone ;
+\item \texttt{postman/} : collection Postman documentée de l'API REST ;
+\item ce rapport et la vidéo de démonstration.
+\end{itemize}
+
+\end{document}
