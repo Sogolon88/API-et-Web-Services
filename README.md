@@ -30,12 +30,25 @@ Deux utilisateurs, l'un sur un téléphone et l'autre sur un ordinateur, échang
 
 ## Lancer le projet
 
-**Prérequis : Java 17 ou plus récent.** Rien d'autre à installer : Gradle, le JDK 21 du projet et la base de données sont fournis ou téléchargés automatiquement.
+**Prérequis :**
+- Java 17 ou plus récent : Gradle et le JDK 21 du projet sont téléchargés automatiquement ;
+- PostgreSQL démarré, avec une base `chatapiDB` créée au préalable. Hibernate crée les tables au premier lancement, mais pas la base elle-même :
+
+```powershell
+psql -U postgres -c "CREATE DATABASE \"chatapiDB\";"
+```
+
+Le mot de passe PostgreSQL est lu dans la variable `DB_PASSWORD`. Sans elle, le serveur ne démarre pas.
 
 ```powershell
 cd chatapi
-.\gradlew.bat bootRun        # Windows
-./gradlew bootRun            # macOS / Linux
+$env:DB_PASSWORD='mot_de_passe'   # Windows
+.\gradlew.bat bootRun
+```
+
+```bash
+cd chatapi
+DB_PASSWORD='mot_de_passe' ./gradlew bootRun   # macOS / Linux
 ```
 
 Le serveur démarre sur **http://localhost:8080**. Le premier lancement est plus long, le temps de télécharger les dépendances.
@@ -50,7 +63,7 @@ Ouvrir **http://localhost:8080** dans le navigateur redirige vers le client adap
 Les deux clients partagent la même logique (`chat.js`) et le même thème (`chat.css`) ; seule la mise en page diffère. Pour essayer seul sur un ordinateur, ouvrir deux onglets et se connecter avec un compte différent dans chacun (par exemple `seyni` et `fode`) : chaque onglet garde son propre jeton.
 
 Par défaut :
-- les données sont enregistrées dans une base **H2** (`chatapi/data/`), elles sont conservées entre deux redémarrages ;
+- les données sont enregistrées dans la base **PostgreSQL** `chatapiDB`, elles sont conservées entre deux redémarrages ;
 - sans variable `JWT_SECRET`, une clé de signature aléatoire est générée au démarrage. Les jetons sont alors invalidés à chaque redémarrage : il suffit de se reconnecter.
 
 ### Lancer les tests
@@ -62,24 +75,15 @@ cd chatapi
 
 Les tests utilisent une base H2 en mémoire et ne touchent pas aux données.
 
-### Configuration facultative
+### Configuration
 
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `JWT_SECRET` | Clé de signature des jetons (32 caractères minimum) | Clé aléatoire à chaque démarrage |
 | `CHAT_WEBHOOK_URL` | URL appelée en `POST` quand le destinataire d'un message est hors ligne | Aucune : notification simulée dans les logs |
-| `SPRING_PROFILES_ACTIVE=postgres` | Utiliser PostgreSQL au lieu de H2 | H2 |
-| `DB_URL` | URL PostgreSQL (profil `postgres`) | `jdbc:postgresql://localhost:5432/chatapiDB` |
-| `DB_USER` | Utilisateur PostgreSQL (profil `postgres`) | `postgres` |
-| `DB_PASSWORD` | Mot de passe PostgreSQL (profil `postgres`) | aucun |
-
-Exemple avec PostgreSQL (la base `chatapiDB` doit exister) :
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE='postgres'
-$env:DB_PASSWORD='mot_de_passe'
-.\gradlew.bat bootRun
-```
+| `DB_URL` | URL PostgreSQL | `jdbc:postgresql://localhost:5432/chatapiDB` |
+| `DB_USER` | Utilisateur PostgreSQL | `postgres` |
+| `DB_PASSWORD` | Mot de passe PostgreSQL (obligatoire) | aucun |
 
 ## API REST
 
@@ -176,7 +180,7 @@ Un VPN actif sur le PC peut bloquer l'accès depuis le réseau local : autoriser
 
 ## Technologies
 
-Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), Gradle 9, JWT (jjwt), springdoc-openapi (Swagger UI), H2 et PostgreSQL, Lombok, HTML / CSS / JavaScript.
+Java 21, Spring Boot 4.1 (Web MVC, WebSocket, Security, Data JPA, Validation), Gradle 9, JWT (jjwt), springdoc-openapi (Swagger UI), PostgreSQL (H2 en mémoire pour les tests), Lombok, HTML / CSS / JavaScript.
 
 ## Structure du projet
 
@@ -212,8 +216,8 @@ API-et-Web-Services/
         ├── main/resources/
         │   ├── static/                          clients web : mobile.html, desktop.html,
         │   │                                    chat.js et chat.css partagés, mobile.css, desktop.css
-        │   ├── application.properties           configuration par défaut (H2)
-        │   └── application-postgres.properties  profil PostgreSQL
+        │   ├── application.properties           configuration générale, active le profil postgres
+        │   └── application-postgres.properties  connexion PostgreSQL (variables DB_*)
         └── test/                            tests JUnit : API REST (MockMvc), WebSocket, limitation de débit
 ```
 

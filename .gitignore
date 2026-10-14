@@ -3,3 +3,5 @@ replay_pid*.log
 .github/modernize/
 .claude/
 .vscode/
+.metals/
+.bloop/
